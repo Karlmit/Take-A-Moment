@@ -125,6 +125,9 @@ export function ReminderCard({ reminder, t, timeFormat, onChange, onDelete, next
             <p className={styles.reminderLabel}>{reminder.label}</p>
             <p className={styles.reminderMeta}>
               {t.frequency} {reminder.frequencyMinutes} {t.minutes} · {reminder.durationMinutes} {t.minutes}
+              {reminder.enabled && nextBreakAt && nextBreakAt > 0 && (
+                <> · {formatNextBreakTime(nextBreakAt, t, timeFormat)}</>
+              )}
             </p>
           </div>
         </div>

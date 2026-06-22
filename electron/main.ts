@@ -185,6 +185,7 @@ function showOverlay(breakData: ActiveBreak): void {
     if (win.isDestroyed()) continue
     const send = () => {
       if (win.isDestroyed()) return
+      win.setFullScreen(true)
       win.setIgnoreMouseEvents(false)
       win.webContents.send(IPC.BREAK_START, breakData)
       win.focus()
@@ -200,6 +201,7 @@ function showOverlay(breakData: ActiveBreak): void {
 function hideOverlay(): void {
   for (const win of overlayWins) {
     if (!win.isDestroyed()) {
+      win.setFullScreen(false)
       win.setIgnoreMouseEvents(true, { forward: true })
     }
   }
