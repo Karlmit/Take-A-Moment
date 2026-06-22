@@ -20,6 +20,7 @@ export const IPC = {
   BREAK_START: 'break:start',
   BREAK_END: 'break:end',
   STATUS_CHANGED: 'timer:status-changed',
+  SETTINGS_CHANGED: 'settings:changed',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

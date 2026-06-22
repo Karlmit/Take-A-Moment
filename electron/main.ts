@@ -224,6 +224,9 @@ function registerIpcHandlers(): void {
     store.save(settings)
     timer.updateSettings(settings)
     ensureOverlayWindows()
+    for (const win of overlayWins) {
+      if (!win.isDestroyed()) win.webContents.send(IPC.SETTINGS_CHANGED, settings)
+    }
   })
 
   ipcMain.handle(IPC.APP_QUIT, () => app.exit(0))

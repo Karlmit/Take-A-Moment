@@ -34,6 +34,11 @@ const api: Api = {
     ipcRenderer.on(IPC.STATUS_CHANGED, handler)
     return () => ipcRenderer.removeListener(IPC.STATUS_CHANGED, handler)
   },
+  onSettingsChanged: (cb: (s: AppSettings) => void) => {
+    const handler = (_: Electron.IpcRendererEvent, s: AppSettings) => cb(s)
+    ipcRenderer.on(IPC.SETTINGS_CHANGED, handler)
+    return () => ipcRenderer.removeListener(IPC.SETTINGS_CHANGED, handler)
+  },
 }
 
 contextBridge.exposeInMainWorld('api', api)

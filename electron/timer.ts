@@ -21,7 +21,6 @@ interface ScheduledReminder {
   label: string
   nextAt: number
   skipped: boolean
-  timeoutId: ReturnType<typeof setTimeout> | null
 }
 
 export class Timer extends EventEmitter {
@@ -30,6 +29,7 @@ export class Timer extends EventEmitter {
   private paused = false
   private activeBreak: ActiveBreak | null = null
   private breakTimeoutId: ReturnType<typeof setTimeout> | null = null
+  private tickInterval: ReturnType<typeof setInterval> | null = null
 
   constructor(settings: AppSettings) {
     super()
@@ -42,20 +42,43 @@ export class Timer extends EventEmitter {
     this.rescheduleAll()
   }
 
-  private rescheduleAll(): void {
-    // Clear existing timers
-    for (const entry of this.scheduled.values()) {
-      if (entry.timeoutId) clearTimeout(entry.timeoutId)
+  private startTick(): void {
+    if (this.tickInterval) return
+    this.tickInterval = setInterval(() => this.tick(), 10_000)
+  }
+
+  private stopTick(): void {
+    if (this.tickInterval) {
+      clearInterval(this.tickInterval)
+      this.tickInterval = null
     }
+  }
+
+  private tick(): void {
+    if (this.paused || this.activeBreak) return
+    const now = Date.now()
+    for (const [id, entry] of this.scheduled.entries()) {
+      if (entry.nextAt <= now) {
+        this.scheduled.delete(id)
+        this.onBreakDue(id)
+      }
+    }
+  }
+
+  private rescheduleAll(): void {
     this.scheduled.clear()
 
-    if (this.paused || this.activeBreak) return
+    if (this.paused || this.activeBreak) {
+      this.stopTick()
+      return
+    }
 
     for (const reminder of this.settings.reminders) {
       if (!reminder.enabled) continue
       this.schedule(reminder.id, reminder.label, reminder.frequencyMinutes, reminder.startTime ?? null)
     }
 
+    this.startTick()
     this.emit('status-changed', this.getStatus())
   }
 
@@ -63,10 +86,7 @@ export class Timer extends EventEmitter {
     const nextAt = startTime
       ? nextOccurrenceFromAnchor(startTime, frequencyMinutes)
       : Date.now() + frequencyMinutes * 60 * 1000
-    const entry: ScheduledReminder = { reminderId: id, label, nextAt, skipped: false, timeoutId: null }
-    const delay = nextAt - Date.now()
-    entry.timeoutId = setTimeout(() => this.onBreakDue(id), Math.max(0, delay))
-    this.scheduled.set(id, entry)
+    this.scheduled.set(id, { reminderId: id, label, nextAt, skipped: false })
   }
 
   private onBreakDue(id: string): void {
@@ -112,9 +132,6 @@ export class Timer extends EventEmitter {
       postponeCount,
     }
 
-    // Clear the scheduled entry (it'll reschedule after the break)
-    const entry = this.scheduled.get(reminderId)
-    if (entry?.timeoutId) clearTimeout(entry.timeoutId)
     this.scheduled.delete(reminderId)
 
     this.emit('break-start', this.activeBreak)
@@ -179,10 +196,7 @@ export class Timer extends EventEmitter {
 
   pause(): void {
     this.paused = true
-    for (const entry of this.scheduled.values()) {
-      if (entry.timeoutId) clearTimeout(entry.timeoutId)
-      entry.timeoutId = null
-    }
+    this.stopTick()
     this.emit('status-changed', this.getStatus())
   }
 

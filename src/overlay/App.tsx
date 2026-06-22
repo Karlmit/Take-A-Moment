@@ -37,12 +37,16 @@ export function App() {
 
   const breakDataRef = useRef<ActiveBreak | null>(null)
 
+  const applySettings = useCallback((s: { postponeMinutes: number; language: Language; theme: string }) => {
+    setPostponeMinutes(s.postponeMinutes)
+    setLanguage(s.language as Language)
+    document.documentElement.setAttribute('data-theme', s.theme)
+  }, [])
+
   useEffect(() => {
-    window.api.getSettings().then(s => {
-      setPostponeMinutes(s.postponeMinutes)
-      setLanguage(s.language)
-      document.documentElement.setAttribute('data-theme', s.theme)
-    })
+    window.api.getSettings().then(applySettings)
+
+    const offSettings = window.api.onSettingsChanged(applySettings)
 
     const offStart = window.api.onBreakStart((b) => {
       breakDataRef.current = b
@@ -63,11 +67,12 @@ export function App() {
     })
 
     return () => {
+      offSettings()
       offStart()
       offEnd()
       if (tickRef.current) clearInterval(tickRef.current)
     }
-  }, [startTick])
+  }, [startTick, applySettings])
 
   const handleEndEarly = () => {
     setVisible(false)
