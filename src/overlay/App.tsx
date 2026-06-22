@@ -96,7 +96,7 @@ export function App() {
         hidden: { clipPath: 'inset(0 0 100% 0)' },
         visible: {
           clipPath: 'inset(0 0 0% 0)',
-          transition: { duration: 1.2, ease: [0.16, 1, 0.3, 1] },
+          transition: { duration: 1.5, ease: [0.4, 0, 0.9, 0.15] },
         },
         exit: {
           opacity: 0,
@@ -109,7 +109,7 @@ export function App() {
     visible: {
       opacity: 1,
       y: 0,
-      transition: { delay: 0.7, duration: 0.6, ease: [0.16, 1, 0.3, 1] },
+      transition: { delay: 1.0, duration: 0.5, ease: [0.16, 1, 0.3, 1] },
     },
     exit: { opacity: 0, transition: { duration: 0.2 } },
   }
