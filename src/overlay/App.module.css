@@ -6,6 +6,17 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 0 80px 0 oklch(0.20 0.025 140 / 0.06);
+  --hole-pct: -20;
+  mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent calc(var(--hole-pct) * 1%),
+    black calc(var(--hole-pct) * 1% + 18%)
+  );
+  -webkit-mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent calc(var(--hole-pct) * 1%),
+    black calc(var(--hole-pct) * 1% + 18%)
+  );
 }
 
 /* Animated background mode — transparent so the bg component shows through */

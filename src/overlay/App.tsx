@@ -106,14 +106,21 @@ export function App() {
         exit: { opacity: 0, transition: { duration: 0.3 } },
       }
     : {
-        hidden: { clipPath: 'inset(0 0 100% 0)' },
+        hidden: { clipPath: 'inset(0 0 100% 0)', '--hole-pct': -20 },
         visible: {
           clipPath: 'inset(0 0 0% 0)',
+          '--hole-pct': -20,
           transition: { duration: 1.5, ease: [0.4, 0, 0.9, 0.15] },
         },
         exit: {
-          opacity: 0,
-          transition: { duration: 0.5, ease: 'easeInOut' },
+          '--hole-pct': [-20, -10, 40, 160],
+          transition: {
+            '--hole-pct': {
+              duration: 2.5,
+              times: [0, 0.45, 0.72, 1],
+              ease: 'linear',
+            },
+          },
         },
       }
 
@@ -124,7 +131,7 @@ export function App() {
       y: 0,
       transition: { delay: 1.0, duration: 0.5, ease: [0.16, 1, 0.3, 1] },
     },
-    exit: { opacity: 0, transition: { duration: 0.2 } },
+    exit: { opacity: 1, transition: { duration: 0 } },
   }
 
   return (
