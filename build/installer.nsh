@@ -1,6 +1,6 @@
 ; Take A Moment — custom NSIS installer script
 ; Silent install with language flag:
-;   "Take A Moment Setup 0.4.0.exe" /S /language=en
+;   "Take A Moment Setup 0.5.x.exe" /S /language=en
 
 !include "FileFunc.nsh"
 !insertmacro GetParameters
@@ -12,12 +12,13 @@
   ${GetParameters} $R8
   ClearErrors
   ${GetOptions} $R8 "/language=" $R9
+  ; Kill any running instance before files are touched
+  ; customInstall runs after file extraction — too late. customInit runs first.
+  ExecWait 'cmd /C taskkill /F /IM "Take A Moment.exe" /T'
+  Sleep 1000
 !macroend
 
 !macro customInstall
-  ; Kill any running instance so the installer can replace locked files
-  ExecWait 'taskkill /F /IM "Take A Moment.exe" /T'
-  Sleep 1000
   ; Write language preference so the app applies it on first run
   FileOpen $0 "$INSTDIR\resources\install-config.json" w
   FileWrite $0 '{"language":"$R9"}'
