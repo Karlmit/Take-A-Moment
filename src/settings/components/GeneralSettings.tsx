@@ -8,10 +8,11 @@ type Strings = ReturnType<typeof useStrings>
 interface Props {
   settings: AppSettings
   t: Strings
+  version: string
   onChange: (s: AppSettings) => void
 }
 
-export function GeneralSettings({ settings, t, onChange }: Props) {
+export function GeneralSettings({ settings, t, version, onChange }: Props) {
   const update = (patch: Partial<AppSettings>) => onChange({ ...settings, ...patch })
 
   return (
@@ -119,6 +120,8 @@ export function GeneralSettings({ settings, t, onChange }: Props) {
           </Row>
         </div>
       </Section>
+
+      {version && <p className={styles.versionTag}>v{version}</p>}
     </div>
   )
 }

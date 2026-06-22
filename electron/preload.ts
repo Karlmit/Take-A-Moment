@@ -17,6 +17,7 @@ const api: Api = {
   quit: (): Promise<void> => ipcRenderer.invoke(IPC.APP_QUIT),
   openSettings: (): Promise<void> => ipcRenderer.invoke(IPC.APP_OPEN_SETTINGS),
   setStartup: (enabled: boolean): Promise<void> => ipcRenderer.invoke(IPC.APP_SET_STARTUP, enabled),
+  getVersion: (): Promise<string> => ipcRenderer.invoke(IPC.APP_GET_VERSION),
   openSoundFile: (): Promise<string | null> => ipcRenderer.invoke(IPC.APP_OPEN_SOUND_FILE),
 
   onBreakStart: (cb: (b: ActiveBreak) => void) => {

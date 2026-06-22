@@ -34,6 +34,7 @@ function newReminder(): Reminder {
 export function App() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [status, setStatus] = useState<TimerStatus | null>(null)
+  const [version, setVersion] = useState('')
   const [saved, setSaved] = useState(false)
   const [activeTab, setActiveTab] = useState<'reminders' | 'general'>('reminders')
   const t = useStrings(settings.language)
@@ -41,6 +42,7 @@ export function App() {
   useEffect(() => {
     window.api.getSettings().then(setSettings)
     window.api.getTimerStatus().then(setStatus)
+    window.api.getVersion().then(setVersion)
 
     const off = window.api.onStatusChanged(setStatus)
     return off
@@ -138,6 +140,7 @@ export function App() {
           <GeneralSettings
             settings={settings}
             t={t}
+            version={version}
             onChange={save}
           />
         )}

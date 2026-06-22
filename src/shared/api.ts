@@ -13,6 +13,7 @@ export interface Api {
   quit: () => Promise<void>
   openSettings: () => Promise<void>
   setStartup: (enabled: boolean) => Promise<void>
+  getVersion: () => Promise<string>
   openSoundFile: () => Promise<string | null>
   onBreakStart: (cb: (b: ActiveBreak) => void) => () => void
   onBreakEnd: (cb: () => void) => () => void

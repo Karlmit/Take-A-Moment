@@ -236,6 +236,8 @@ function registerIpcHandlers(): void {
     app.setLoginItemSettings({ openAtLogin: enabled })
   })
 
+  ipcMain.handle(IPC.APP_GET_VERSION, () => app.getVersion())
+
   ipcMain.handle(IPC.APP_OPEN_SOUND_FILE, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],

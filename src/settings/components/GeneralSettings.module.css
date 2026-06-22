@@ -216,3 +216,10 @@
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
+
+.versionTag {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--text-muted);
+  text-align: center;
+}

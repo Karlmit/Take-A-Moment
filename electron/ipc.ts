@@ -14,6 +14,7 @@ export const IPC = {
   APP_QUIT: 'app:quit',
   APP_OPEN_SETTINGS: 'app:open-settings',
   APP_SET_STARTUP: 'app:set-startup',
+  APP_GET_VERSION: 'app:get-version',
   APP_OPEN_SOUND_FILE: 'app:open-sound-file',
 
   // Events (main → renderer, push)
