@@ -11,22 +11,21 @@ interface Props {
   onTogglePause: () => void
 }
 
-function formatNextBreak(scheduledAt: number): string {
-  const diff = scheduledAt - Date.now()
-  const mins = Math.max(0, Math.ceil(diff / 60000))
-  if (mins <= 0) return 'now'
-  if (mins === 1) return 'in 1 min'
-  return `in ${mins} min`
-}
-
 export function StatusBar({ status, t, onSkip, onTogglePause }: Props) {
   const isActive = !!status.activeBreak
+
+  function formatNextBreak(scheduledAt: number): string {
+    const diff = scheduledAt - Date.now()
+    const mins = Math.max(0, Math.ceil(diff / 60000))
+    if (mins <= 0) return t.nowStr
+    return t.inMinutes(mins)
+  }
 
   return (
     <div className={`${styles.bar} ${isActive ? styles.active : ''}`}>
       <div className={styles.info}>
         {isActive ? (
-          <span className={styles.label}>Break in progress</span>
+          <span className={styles.label}>{t.breakInProgress}</span>
         ) : status.paused ? (
           <span className={styles.label}>{t.paused}</span>
         ) : status.nextBreak ? (
@@ -40,12 +39,12 @@ export function StatusBar({ status, t, onSkip, onTogglePause }: Props) {
       <div className={styles.actions}>
         {!isActive && status.nextBreak && !status.paused && (
           <button className={styles.action} onClick={onSkip} type="button">
-            Skip next
+            {t.skipNextAction}
           </button>
         )}
         {!isActive && (
           <button className={styles.action} onClick={onTogglePause} type="button">
-            {status.paused ? 'Resume' : 'Pause'}
+            {status.paused ? t.resumeAction : t.pauseAction}
           </button>
         )}
       </div>

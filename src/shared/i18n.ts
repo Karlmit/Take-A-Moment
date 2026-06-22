@@ -52,6 +52,17 @@ interface Strings {
   reschedule: string
   today: string
   tomorrow: string
+  // Status bar actions
+  skipNextAction: string
+  pauseAction: string
+  resumeAction: string
+  breakInProgress: string
+  inMinutes: (n: number) => string
+  nowStr: string
+  // General settings
+  behaviour: string
+  pauseMusicDescription: string
+  startupDescription: string
 }
 
 const translations: Record<Language, Strings> = {
@@ -100,6 +111,15 @@ const translations: Record<Language, Strings> = {
     reschedule: 'Reschedule',
     today: 'Today',
     tomorrow: 'Tomorrow',
+    skipNextAction: 'Skip next',
+    pauseAction: 'Pause',
+    resumeAction: 'Resume',
+    breakInProgress: 'Break in progress',
+    inMinutes: (n) => `in ${n} min`,
+    nowStr: 'now',
+    behaviour: 'Behaviour',
+    pauseMusicDescription: 'Pauses media playback when a break starts',
+    startupDescription: 'Run Take A Moment when you sign in to Windows',
   },
   de: {
     appName: 'Take A Moment',
@@ -146,6 +166,15 @@ const translations: Record<Language, Strings> = {
     reschedule: 'Neu planen',
     today: 'Heute',
     tomorrow: 'Morgen',
+    skipNextAction: 'Nächste überspringen',
+    pauseAction: 'Pausieren',
+    resumeAction: 'Fortsetzen',
+    breakInProgress: 'Pause läuft',
+    inMinutes: (n) => `in ${n} Min.`,
+    nowStr: 'jetzt',
+    behaviour: 'Verhalten',
+    pauseMusicDescription: 'Pausiert die Medienwiedergabe beim Start einer Pause',
+    startupDescription: 'Take A Moment beim Windows-Start ausführen',
   },
   fr: {
     appName: 'Take A Moment',
@@ -192,6 +221,15 @@ const translations: Record<Language, Strings> = {
     reschedule: 'Reprogrammer',
     today: "Aujourd'hui",
     tomorrow: 'Demain',
+    skipNextAction: 'Sauter la suivante',
+    pauseAction: 'Mettre en pause',
+    resumeAction: 'Reprendre',
+    breakInProgress: 'Pause en cours',
+    inMinutes: (n) => `dans ${n} min`,
+    nowStr: 'maintenant',
+    behaviour: 'Comportement',
+    pauseMusicDescription: 'Met en pause la lecture lors du début d\'une pause',
+    startupDescription: 'Lancer Take A Moment à la connexion Windows',
   },
   es: {
     appName: 'Take A Moment',
@@ -238,6 +276,15 @@ const translations: Record<Language, Strings> = {
     reschedule: 'Reprogramar',
     today: 'Hoy',
     tomorrow: 'Mañana',
+    skipNextAction: 'Saltar la siguiente',
+    pauseAction: 'Pausar',
+    resumeAction: 'Reanudar',
+    breakInProgress: 'Pausa en curso',
+    inMinutes: (n) => `en ${n} min`,
+    nowStr: 'ahora',
+    behaviour: 'Comportamiento',
+    pauseMusicDescription: 'Pausa la reproducción al iniciar un descanso',
+    startupDescription: 'Ejecutar Take A Moment al iniciar sesión en Windows',
   },
   sv: {
     appName: 'Take A Moment',
@@ -284,6 +331,15 @@ const translations: Record<Language, Strings> = {
     reschedule: 'Ändra tid',
     today: 'Idag',
     tomorrow: 'Imorgon',
+    skipNextAction: 'Hoppa över',
+    pauseAction: 'Pausa',
+    resumeAction: 'Återuppta',
+    breakInProgress: 'Paus pågår',
+    inMinutes: (n) => `om ${n} min`,
+    nowStr: 'nu',
+    behaviour: 'Beteende',
+    pauseMusicDescription: 'Pausar mediauppspelning när en paus börjar',
+    startupDescription: 'Kör Take A Moment när du loggar in på Windows',
   },
   nl: {
     appName: 'Take A Moment',
@@ -330,6 +386,15 @@ const translations: Record<Language, Strings> = {
     reschedule: 'Opnieuw plannen',
     today: 'Vandaag',
     tomorrow: 'Morgen',
+    skipNextAction: 'Volgende overslaan',
+    pauseAction: 'Pauzeren',
+    resumeAction: 'Hervatten',
+    breakInProgress: 'Pauze bezig',
+    inMinutes: (n) => `over ${n} min`,
+    nowStr: 'nu',
+    behaviour: 'Gedrag',
+    pauseMusicDescription: 'Pauzeert mediaweergave wanneer een pauze begint',
+    startupDescription: 'Take A Moment uitvoeren wanneer u zich aanmeldt bij Windows',
   },
   da: {
     appName: 'Take A Moment',
@@ -376,6 +441,15 @@ const translations: Record<Language, Strings> = {
     reschedule: 'Omplanlæg',
     today: 'I dag',
     tomorrow: 'I morgen',
+    skipNextAction: 'Spring næste over',
+    pauseAction: 'Sæt på pause',
+    resumeAction: 'Genoptag',
+    breakInProgress: 'Pause i gang',
+    inMinutes: (n) => `om ${n} min`,
+    nowStr: 'nu',
+    behaviour: 'Adfærd',
+    pauseMusicDescription: 'Pauser medieafspilning, når en pause begynder',
+    startupDescription: 'Kør Take A Moment, når du logger ind på Windows',
   },
 }
 

@@ -48,7 +48,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   reminders: [
     {
       id: 'default-take-a-moment',
-      label: 'Take A Moment',
+      label: 'Stanna upp ett tag',
       frequencyMinutes: 60,
       durationMinutes: 5,
       message: 'Stanna upp ett tag',
@@ -67,6 +67,16 @@ export const DEFAULT_SETTINGS: AppSettings = {
   pauseMusicOnBreak: false,
   launchOnStartup: false,
   postponeMinutes: 5,
+}
+
+const REMINDER_LABELS: Record<AppSettings['language'], string> = {
+  en: 'Take A Moment',
+  de: 'Einen Moment',
+  fr: 'Un moment',
+  es: 'Un momento',
+  sv: 'Stanna upp ett tag',
+  nl: 'Neem even een moment',
+  da: 'Tag et øjeblik',
 }
 
 const REMINDER_MESSAGES: Record<AppSettings['language'], string> = {
@@ -89,6 +99,7 @@ export function getDefaultSettingsForLanguage(lang: string): AppSettings {
     language: safeLang,
     reminders: [{
       ...DEFAULT_SETTINGS.reminders[0],
+      label: REMINDER_LABELS[safeLang],
       message: REMINDER_MESSAGES[safeLang],
     }],
   }

@@ -26,13 +26,13 @@ The installer is in **Swedish** by default. The app opens settings automatically
 ### Silent install
 
 ```
-"Take A Moment Setup 0.4.0.exe" /S
+"Take A Moment Setup 0.5.0.exe" /S
 ```
 
 Silent install with a specific language:
 
 ```
-"Take A Moment Setup 0.4.0.exe" /S /language=en
+"Take A Moment Setup 0.5.0.exe" /S /language=en
 ```
 
 Supported language codes:
@@ -48,6 +48,8 @@ Supported language codes:
 | `da` | Dansk      |
 
 The `/language` flag sets the app's default language and localises the built-in reminder message. It has no effect after the first launch (settings are stored in `%APPDATA%\take-a-moment`).
+
+The app launches automatically after a silent install (e.g. via company portal / Intune user context). It opens the settings window on first run so the user can review their configuration.
 
 ## Usage
 

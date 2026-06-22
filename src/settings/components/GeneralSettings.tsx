@@ -54,7 +54,7 @@ export function GeneralSettings({ settings, t, onChange }: Props) {
         </select>
       </Section>
 
-      <Section title="Behaviour">
+      <Section title={t.behaviour}>
         <div className={styles.fieldGroup}>
           <Row label={t.idleThreshold}>
             <div className={styles.inputWithUnit}>
@@ -86,14 +86,14 @@ export function GeneralSettings({ settings, t, onChange }: Props) {
 
           <ToggleRow
             label={t.pauseMusic}
-            description="Pauses media playback when a break starts"
+            description={t.pauseMusicDescription}
             checked={settings.pauseMusicOnBreak}
             onChange={v => update({ pauseMusicOnBreak: v })}
           />
 
           <ToggleRow
             label={t.launchOnStartup}
-            description="Run Take A Moment when you sign in to Windows"
+            description={t.startupDescription}
             checked={settings.launchOnStartup}
             onChange={v => {
               update({ launchOnStartup: v })
