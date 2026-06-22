@@ -224,11 +224,9 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IPC.TIMER_RESUME, () => timer.resume())
   ipcMain.handle(IPC.TIMER_END_BREAK, () => {
     timer.endBreak()
-    hideOverlay()
   })
   ipcMain.handle(IPC.TIMER_POSTPONE, () => {
     timer.postponeBreak()
-    hideOverlay()
   })
   ipcMain.handle(IPC.TIMER_PREVIEW, () => timer.preview())
 
@@ -279,7 +277,7 @@ app.whenReady().then(() => {
       if (!win.isDestroyed()) win.webContents.send(IPC.BREAK_END)
     }
     settingsWin?.webContents.send(IPC.STATUS_CHANGED, timer.getStatus())
-    setTimeout(() => hideOverlay(), 1000)
+    setTimeout(() => hideOverlay(), 2600)
   })
 
   timer.on('status-changed', (status: TimerStatus) => {
