@@ -41,6 +41,7 @@ export function App() {
     window.api.getSettings().then(s => {
       setPostponeMinutes(s.postponeMinutes)
       setLanguage(s.language)
+      document.documentElement.setAttribute('data-theme', s.theme)
     })
 
     const offStart = window.api.onBreakStart((b) => {
