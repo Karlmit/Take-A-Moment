@@ -322,3 +322,46 @@
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* Start time row */
+.startTimeRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.timeInput {
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-body);
+  font-family: var(--font-body);
+  color: var(--text);
+  width: 120px;
+  transition: border-color var(--t-fast), opacity var(--t-fast);
+}
+
+.timeInput:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.timeInputDisabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.rescheduleLabel {
+  font-size: var(--text-label);
+  color: var(--text-muted);
+}
+
+/* Next break display */
+.nextBreakValue {
+  font-size: var(--text-body);
+  color: var(--primary);
+  font-weight: var(--weight-medium);
+  padding: var(--space-2) 0;
+  display: block;
+}

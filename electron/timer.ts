@@ -4,6 +4,18 @@ import { isIdle } from './idle'
 import { isMediaInUse } from './media-guard'
 import { pauseSystemMedia, resumeSystemMedia } from './music'
 
+function nextOccurrenceFromAnchor(startTimeStr: string, frequencyMinutes: number): number {
+  const [h, m] = startTimeStr.split(':').map(Number)
+  const anchor = new Date()
+  anchor.setHours(h, m, 0, 0)
+  const anchorMs = anchor.getTime()
+  const now = Date.now()
+  if (anchorMs > now) return anchorMs
+  const intervalMs = frequencyMinutes * 60 * 1000
+  const periods = Math.floor((now - anchorMs) / intervalMs)
+  return anchorMs + (periods + 1) * intervalMs
+}
+
 interface ScheduledReminder {
   reminderId: string
   label: string
@@ -41,17 +53,19 @@ export class Timer extends EventEmitter {
 
     for (const reminder of this.settings.reminders) {
       if (!reminder.enabled) continue
-      this.schedule(reminder.id, reminder.label, reminder.frequencyMinutes)
+      this.schedule(reminder.id, reminder.label, reminder.frequencyMinutes, reminder.startTime ?? null)
     }
 
     this.emit('status-changed', this.getStatus())
   }
 
-  private schedule(id: string, label: string, frequencyMinutes: number): void {
-    const nextAt = Date.now() + frequencyMinutes * 60 * 1000
+  private schedule(id: string, label: string, frequencyMinutes: number, startTime: string | null = null): void {
+    const nextAt = startTime
+      ? nextOccurrenceFromAnchor(startTime, frequencyMinutes)
+      : Date.now() + frequencyMinutes * 60 * 1000
     const entry: ScheduledReminder = { reminderId: id, label, nextAt, skipped: false, timeoutId: null }
     const delay = nextAt - Date.now()
-    entry.timeoutId = setTimeout(() => this.onBreakDue(id), delay)
+    entry.timeoutId = setTimeout(() => this.onBreakDue(id), Math.max(0, delay))
     this.scheduled.set(id, entry)
   }
 
@@ -62,7 +76,7 @@ export class Timer extends EventEmitter {
     const entry = this.scheduled.get(id)
     if (!entry || entry.skipped) {
       // Was skipped — reschedule for next interval
-      this.schedule(id, reminder.label, reminder.frequencyMinutes)
+      this.schedule(id, reminder.label, reminder.frequencyMinutes, reminder.startTime ?? null)
       if (entry) entry.skipped = false
       this.emit('status-changed', this.getStatus())
       return
@@ -70,12 +84,12 @@ export class Timer extends EventEmitter {
 
     // Check idle and media guards
     if (reminder.skipOnIdle && isIdle(this.settings.idleThresholdMinutes)) {
-      this.schedule(id, reminder.label, reminder.frequencyMinutes)
+      this.schedule(id, reminder.label, reminder.frequencyMinutes, reminder.startTime ?? null)
       this.emit('status-changed', this.getStatus())
       return
     }
     if (reminder.skipOnMedia && isMediaInUse()) {
-      this.schedule(id, reminder.label, reminder.frequencyMinutes)
+      this.schedule(id, reminder.label, reminder.frequencyMinutes, reminder.startTime ?? null)
       this.emit('status-changed', this.getStatus())
       return
     }
@@ -131,7 +145,7 @@ export class Timer extends EventEmitter {
     if (!this.paused) {
       const reminder = this.settings.reminders.find(r => r.id === ended.reminderId)
       if (reminder?.enabled) {
-        this.schedule(ended.reminderId, reminder.label, reminder.frequencyMinutes)
+        this.schedule(ended.reminderId, reminder.label, reminder.frequencyMinutes, reminder.startTime ?? null)
       }
     }
 
@@ -188,20 +202,14 @@ export class Timer extends EventEmitter {
   getStatus(): TimerStatus {
     let nextBreak: NextBreak | null = null
     let earliestAt = Infinity
+    const nextBreaks: Record<string, number> = {}
     for (const entry of this.scheduled.values()) {
+      nextBreaks[entry.reminderId] = entry.nextAt
       if (entry.nextAt < earliestAt) {
         earliestAt = entry.nextAt
-        nextBreak = {
-          reminderId: entry.reminderId,
-          label: entry.label,
-          scheduledAt: entry.nextAt,
-        }
+        nextBreak = { reminderId: entry.reminderId, label: entry.label, scheduledAt: entry.nextAt }
       }
     }
-    return {
-      paused: this.paused,
-      nextBreak,
-      activeBreak: this.activeBreak,
-    }
+    return { paused: this.paused, nextBreak, activeBreak: this.activeBreak, nextBreaks }
   }
 }

@@ -10,12 +10,13 @@ export interface Reminder {
   skipOnIdle: boolean
   skipOnMedia: boolean
   volume: number
+  startTime: string | null
 }
 
 export interface AppSettings {
   reminders: Reminder[]
   theme: 'still-garden' | 'soft-dusk' | 'morning-mist'
-  language: 'en' | 'de' | 'fr' | 'es' | 'sv'
+  language: 'en' | 'de' | 'fr' | 'es' | 'sv' | 'nl' | 'da'
   idleThresholdMinutes: number
   pauseMusicOnBreak: boolean
   launchOnStartup: boolean
@@ -40,6 +41,7 @@ export interface TimerStatus {
   paused: boolean
   nextBreak: NextBreak | null
   activeBreak: ActiveBreak | null
+  nextBreaks: Record<string, number>
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -56,6 +58,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
       skipOnIdle: true,
       skipOnMedia: false,
       volume: 80,
+      startTime: null,
     },
   ],
   theme: 'still-garden',
@@ -64,4 +67,29 @@ export const DEFAULT_SETTINGS: AppSettings = {
   pauseMusicOnBreak: false,
   launchOnStartup: false,
   postponeMinutes: 5,
+}
+
+const REMINDER_MESSAGES: Record<AppSettings['language'], string> = {
+  en: 'Take A Moment',
+  de: 'Nimm dir einen Moment',
+  fr: 'Prenez un moment',
+  es: 'Tómate un momento',
+  sv: 'Stanna upp ett tag',
+  nl: 'Neem even een moment',
+  da: 'Tag et øjeblik',
+}
+
+export function getDefaultSettingsForLanguage(lang: string): AppSettings {
+  const validLangs = ['en', 'de', 'fr', 'es', 'sv', 'nl', 'da'] as const
+  const safeLang: AppSettings['language'] = (validLangs as readonly string[]).includes(lang)
+    ? (lang as AppSettings['language'])
+    : 'sv'
+  return {
+    ...DEFAULT_SETTINGS,
+    language: safeLang,
+    reminders: [{
+      ...DEFAULT_SETTINGS.reminders[0],
+      message: REMINDER_MESSAGES[safeLang],
+    }],
+  }
 }

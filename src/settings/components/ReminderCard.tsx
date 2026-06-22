@@ -7,6 +7,27 @@ import styles from './ReminderCard.module.css'
 
 type Strings = ReturnType<typeof useStrings>
 
+function nextWholeHour(): string {
+  const d = new Date()
+  d.setHours(d.getHours() + 1, 0, 0, 0)
+  return `${String(d.getHours()).padStart(2, '0')}:00`
+}
+
+function formatNextBreakTime(ts: number, t: Strings): string {
+  const diff = ts - Date.now()
+  const mins = Math.ceil(diff / 60000)
+  const timeStr = new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  if (mins <= 0) return timeStr
+  const now = new Date()
+  const then = new Date(ts)
+  const isToday = then.toDateString() === now.toDateString()
+  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1)
+  const isTomorrow = then.toDateString() === tomorrow.toDateString()
+  if (isToday) return `${t.today} ${timeStr}`
+  if (isTomorrow) return `${t.tomorrow} ${timeStr}`
+  return timeStr
+}
+
 const SOUND_OPTIONS = ['none', 'chime', 'bell', 'soft'] as const
 type SoundOption = (typeof SOUND_OPTIONS)[number]
 
@@ -19,6 +40,7 @@ interface Props {
   t: Strings
   onChange: (r: Reminder) => void
   onDelete: () => void
+  nextBreakAt?: number
 }
 
 function SoundField({ label, value, onChange, onPlay, t }: {
@@ -52,14 +74,16 @@ function SoundField({ label, value, onChange, onPlay, t }: {
   )
 }
 
-export function ReminderCard({ reminder, t, onChange, onDelete }: Props) {
+export function ReminderCard({ reminder, t, onChange, onDelete, nextBreakAt }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [draft, setDraft] = useState<Reminder>(reminder)
+  const [startTimeLocked, setStartTimeLocked] = useState(reminder.startTime !== null)
 
   const handleToggleExpand = () => {
     if (expanded) {
       // Reset draft if not saved
       setDraft(reminder)
+      setStartTimeLocked(reminder.startTime !== null)
     }
     setExpanded(v => !v)
   }
@@ -184,6 +208,55 @@ export function ReminderCard({ reminder, t, onChange, onDelete }: Props) {
                   <span className={styles.volumeValue}>{draft.volume ?? 80}%</span>
                 </div>
               </Field>
+
+              <div className={styles.row}>
+                <Field label={t.startTime}>
+                  <div className={styles.startTimeRow}>
+                    <label className={styles.checkboxLabel}>
+                      <input
+                        type="checkbox"
+                        className={styles.checkboxInput}
+                        checked={draft.startTime !== null}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            update({ startTime: nextWholeHour() })
+                            setStartTimeLocked(false)
+                          } else {
+                            update({ startTime: null })
+                            setStartTimeLocked(false)
+                          }
+                        }}
+                      />
+                    </label>
+                    <input
+                      type="time"
+                      className={`${styles.timeInput} ${(draft.startTime === null || startTimeLocked) ? styles.timeInputDisabled : ''}`}
+                      value={draft.startTime ?? ''}
+                      disabled={draft.startTime === null || startTimeLocked}
+                      onChange={e => update({ startTime: e.target.value || null })}
+                    />
+                    {draft.startTime !== null && (
+                      <label className={styles.checkboxLabel}>
+                        <input
+                          type="checkbox"
+                          className={styles.checkboxInput}
+                          checked={!startTimeLocked}
+                          onChange={e => setStartTimeLocked(!e.target.checked)}
+                        />
+                        <span className={styles.rescheduleLabel}>{t.reschedule}</span>
+                      </label>
+                    )}
+                  </div>
+                </Field>
+
+                {nextBreakAt !== undefined && nextBreakAt > 0 && (
+                  <Field label={t.nextBreak}>
+                    <span className={styles.nextBreakValue}>
+                      {formatNextBreakTime(nextBreakAt, t)}
+                    </span>
+                  </Field>
+                )}
+              </div>
 
               <div className={styles.checkboxRow}>
                 <Checkbox

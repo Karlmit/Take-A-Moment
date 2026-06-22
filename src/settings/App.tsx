@@ -27,6 +27,7 @@ function newReminder(): Reminder {
     skipOnIdle: true,
     skipOnMedia: true,
     volume: 80,
+    startTime: null,
   }
 }
 
@@ -123,6 +124,7 @@ export function App() {
                 t={t}
                 onChange={updateReminder}
                 onDelete={() => deleteReminder(r.id)}
+                nextBreakAt={status?.nextBreaks?.[r.id]}
               />
             ))}
             <button className={styles.addBtn} onClick={addReminder} type="button">

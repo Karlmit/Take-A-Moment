@@ -1,6 +1,6 @@
 {
   "name": "take-a-moment",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A gentle Windows break-reminder app",
   "main": "out/main/main.js",
   "scripts": {
@@ -50,7 +50,8 @@
       "runAfterFinish": true,
       "installerIcon": "assets/icons/app.ico",
       "uninstallerIcon": "assets/icons/app.ico",
-      "language": "1053"
+      "language": "1053",
+      "include": "build/installer.nsh"
     }
   }
 }

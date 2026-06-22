@@ -49,6 +49,8 @@ export function GeneralSettings({ settings, t, onChange }: Props) {
           <option value="fr">Français</option>
           <option value="es">Español</option>
           <option value="sv">Svenska</option>
+          <option value="nl">Nederlands</option>
+          <option value="da">Dansk</option>
         </select>
       </Section>
 
