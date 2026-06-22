@@ -12,9 +12,10 @@
   ${GetParameters} $R8
   ClearErrors
   ${GetOptions} $R8 "/language=" $R9
-  ; Kill any running instance before files are touched
-  ; customInstall runs after file extraction — too late. customInit runs first.
-  ExecWait 'cmd /C taskkill /F /IM "Take A Moment.exe" /T'
+  ; Kill any running instance before files are touched.
+  ; nsExec runs silently (no console window), unlike ExecWait.
+  nsExec::ExecToLog 'taskkill /F /IM "Take A Moment.exe" /T'
+  Pop $0
   Sleep 1000
 !macroend
 
