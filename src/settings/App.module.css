@@ -1,0 +1,136 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-6) var(--space-8);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* One Script Rule: app name uses display font once per screen */
+.appName {
+  font-family: var(--font-display);
+  font-size: 28px;
+  color: var(--text);
+  margin: 0;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.savedBadge {
+  font-size: var(--text-label);
+  color: var(--primary);
+  font-weight: var(--weight-medium);
+}
+
+.previewBtn {
+  padding: var(--space-2) var(--space-5);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  font-family: var(--font-body);
+  transition: background var(--t-base) var(--ease-out);
+  cursor: pointer;
+}
+
+.previewBtn:hover {
+  background: var(--color-panel-hover);
+}
+
+.previewBtn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.tabs {
+  display: flex;
+  gap: 0;
+  padding: 0 var(--space-8);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.tab {
+  padding: var(--space-4) var(--space-5);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  font-family: var(--font-body);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--t-base), border-color var(--t-base);
+  margin-bottom: -1px;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tabActive {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+.main {
+  flex: 1;
+  padding: var(--space-8);
+  overflow-y: auto;
+}
+
+.reminderList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.addBtn {
+  padding: var(--space-4) var(--space-6);
+  background: none;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--text-muted);
+  font-size: var(--text-body);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: border-color var(--t-base), color var(--t-base), background var(--t-base);
+  text-align: center;
+}
+
+.addBtn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: oklch(from var(--primary) l c h / 0.06);
+}
+
+.addBtn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}

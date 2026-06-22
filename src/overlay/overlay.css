@@ -1,0 +1,5 @@
+/* Override the body background for the transparent overlay window.
+   Without this, the body colour shows through when no break is active. */
+body {
+  background: transparent !important;
+}

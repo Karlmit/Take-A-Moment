@@ -1,0 +1,255 @@
+export type Language = 'en' | 'de' | 'fr' | 'es' | 'sv'
+
+interface Strings {
+  appName: string
+  // Overlay
+  endBreakEarly: string
+  postpone: (minutes: number) => string
+  breakEndsIn: string
+  // Settings
+  settings: string
+  reminders: string
+  addReminder: string
+  editReminder: string
+  deleteReminder: string
+  reminderLabel: string
+  frequency: string
+  duration: string
+  message: string
+  soundAtStart: string
+  soundAtEnd: string
+  skipWhenIdle: string
+  skipWhenMedia: string
+  save: string
+  cancel: string
+  preview: string
+  // General
+  generalSettings: string
+  theme: string
+  language: string
+  idleThreshold: string
+  pauseMusic: string
+  launchOnStartup: string
+  postponeDuration: string
+  minutes: string
+  // Tray / status
+  nextBreak: string
+  paused: string
+  noBreaks: string
+  // Sounds
+  soundNone: string
+  soundChime: string
+  soundBell: string
+  soundSoft: string
+  // Themes
+  themeStillGarden: string
+  themeSoftDusk: string
+  themeMorningMist: string
+}
+
+const translations: Record<Language, Strings> = {
+  en: {
+    appName: 'Take A Moment',
+    endBreakEarly: 'End break early',
+    postpone: (m) => `Postpone ${m} min`,
+    breakEndsIn: 'Break ends in',
+    settings: 'Settings',
+    reminders: 'Reminders',
+    addReminder: 'Add reminder',
+    editReminder: 'Edit reminder',
+    deleteReminder: 'Delete reminder',
+    reminderLabel: 'Name',
+    frequency: 'Every',
+    duration: 'Duration',
+    message: 'Message',
+    soundAtStart: 'Sound at start',
+    soundAtEnd: 'Sound at end',
+    skipWhenIdle: 'Skip when idle',
+    skipWhenMedia: 'Skip when camera or mic is in use',
+    save: 'Save',
+    cancel: 'Cancel',
+    preview: 'Preview break',
+    generalSettings: 'General',
+    theme: 'Theme',
+    language: 'Language',
+    idleThreshold: 'Idle threshold',
+    pauseMusic: 'Pause music during breaks',
+    launchOnStartup: 'Launch at Windows startup',
+    postponeDuration: 'Postpone duration',
+    minutes: 'min',
+    nextBreak: 'Next break',
+    paused: 'Paused',
+    noBreaks: 'No breaks scheduled',
+    soundNone: 'None',
+    soundChime: 'Chime',
+    soundBell: 'Bell',
+    soundSoft: 'Soft tone',
+    themeStillGarden: 'Still Garden',
+    themeSoftDusk: 'Soft Dusk',
+    themeMorningMist: 'Morning Mist',
+  },
+  de: {
+    appName: 'Take A Moment',
+    endBreakEarly: 'Pause vorzeitig beenden',
+    postpone: (m) => `${m} Min. verschieben`,
+    breakEndsIn: 'Pause endet in',
+    settings: 'Einstellungen',
+    reminders: 'Erinnerungen',
+    addReminder: 'Erinnerung hinzufügen',
+    editReminder: 'Erinnerung bearbeiten',
+    deleteReminder: 'Erinnerung löschen',
+    reminderLabel: 'Name',
+    frequency: 'Alle',
+    duration: 'Dauer',
+    message: 'Nachricht',
+    soundAtStart: 'Ton beim Start',
+    soundAtEnd: 'Ton am Ende',
+    skipWhenIdle: 'Überspringen wenn inaktiv',
+    skipWhenMedia: 'Überspringen bei aktiver Kamera/Mikrofon',
+    save: 'Speichern',
+    cancel: 'Abbrechen',
+    preview: 'Vorschau',
+    generalSettings: 'Allgemein',
+    theme: 'Design',
+    language: 'Sprache',
+    idleThreshold: 'Inaktivitätsschwelle',
+    pauseMusic: 'Musik während Pausen pausieren',
+    launchOnStartup: 'Beim Windows-Start öffnen',
+    postponeDuration: 'Verschiebungsdauer',
+    minutes: 'Min.',
+    nextBreak: 'Nächste Pause',
+    paused: 'Pausiert',
+    noBreaks: 'Keine Pausen geplant',
+    soundNone: 'Kein',
+    soundChime: 'Glockenspiel',
+    soundBell: 'Glocke',
+    soundSoft: 'Sanfter Ton',
+    themeStillGarden: 'Stiller Garten',
+    themeSoftDusk: 'Sanfte Dämmerung',
+    themeMorningMist: 'Morgennebel',
+  },
+  fr: {
+    appName: 'Take A Moment',
+    endBreakEarly: 'Terminer la pause',
+    postpone: (m) => `Reporter de ${m} min`,
+    breakEndsIn: 'La pause se termine dans',
+    settings: 'Paramètres',
+    reminders: 'Rappels',
+    addReminder: 'Ajouter un rappel',
+    editReminder: 'Modifier le rappel',
+    deleteReminder: 'Supprimer le rappel',
+    reminderLabel: 'Nom',
+    frequency: 'Toutes les',
+    duration: 'Durée',
+    message: 'Message',
+    soundAtStart: 'Son au début',
+    soundAtEnd: 'Son à la fin',
+    skipWhenIdle: 'Ignorer si inactif',
+    skipWhenMedia: 'Ignorer si caméra ou micro actif',
+    save: 'Enregistrer',
+    cancel: 'Annuler',
+    preview: 'Aperçu',
+    generalSettings: 'Général',
+    theme: 'Thème',
+    language: 'Langue',
+    idleThreshold: "Seuil d'inactivité",
+    pauseMusic: 'Mettre en pause la musique',
+    launchOnStartup: 'Démarrer avec Windows',
+    postponeDuration: 'Durée du report',
+    minutes: 'min',
+    nextBreak: 'Prochaine pause',
+    paused: 'En pause',
+    noBreaks: 'Aucune pause planifiée',
+    soundNone: 'Aucun',
+    soundChime: 'Carillon',
+    soundBell: 'Cloche',
+    soundSoft: 'Ton doux',
+    themeStillGarden: 'Jardin paisible',
+    themeSoftDusk: 'Crépuscule doux',
+    themeMorningMist: 'Brume matinale',
+  },
+  es: {
+    appName: 'Take A Moment',
+    endBreakEarly: 'Terminar pausa',
+    postpone: (m) => `Posponer ${m} min`,
+    breakEndsIn: 'La pausa termina en',
+    settings: 'Ajustes',
+    reminders: 'Recordatorios',
+    addReminder: 'Añadir recordatorio',
+    editReminder: 'Editar recordatorio',
+    deleteReminder: 'Eliminar recordatorio',
+    reminderLabel: 'Nombre',
+    frequency: 'Cada',
+    duration: 'Duración',
+    message: 'Mensaje',
+    soundAtStart: 'Sonido al inicio',
+    soundAtEnd: 'Sonido al final',
+    skipWhenIdle: 'Omitir si inactivo',
+    skipWhenMedia: 'Omitir si cámara o micrófono activo',
+    save: 'Guardar',
+    cancel: 'Cancelar',
+    preview: 'Vista previa',
+    generalSettings: 'General',
+    theme: 'Tema',
+    language: 'Idioma',
+    idleThreshold: 'Tiempo de inactividad',
+    pauseMusic: 'Pausar música durante descansos',
+    launchOnStartup: 'Iniciar con Windows',
+    postponeDuration: 'Duración del aplazamiento',
+    minutes: 'min',
+    nextBreak: 'Próximo descanso',
+    paused: 'Pausado',
+    noBreaks: 'Sin descansos programados',
+    soundNone: 'Ninguno',
+    soundChime: 'Carillón',
+    soundBell: 'Campana',
+    soundSoft: 'Tono suave',
+    themeStillGarden: 'Jardín tranquilo',
+    themeSoftDusk: 'Crepúsculo suave',
+    themeMorningMist: 'Niebla matutina',
+  },
+  sv: {
+    appName: 'Take A Moment',
+    endBreakEarly: 'Avsluta paus tidigt',
+    postpone: (m) => `Skjut upp ${m} min`,
+    breakEndsIn: 'Pausen slutar om',
+    settings: 'Inställningar',
+    reminders: 'Påminnelser',
+    addReminder: 'Lägg till påminnelse',
+    editReminder: 'Redigera påminnelse',
+    deleteReminder: 'Ta bort påminnelse',
+    reminderLabel: 'Namn',
+    frequency: 'Var',
+    duration: 'Varaktighet',
+    message: 'Meddelande',
+    soundAtStart: 'Ljud vid start',
+    soundAtEnd: 'Ljud vid slut',
+    skipWhenIdle: 'Hoppa över vid inaktivitet',
+    skipWhenMedia: 'Hoppa över vid aktiv kamera/mikrofon',
+    save: 'Spara',
+    cancel: 'Avbryt',
+    preview: 'Förhandsgranska',
+    generalSettings: 'Allmänt',
+    theme: 'Tema',
+    language: 'Språk',
+    idleThreshold: 'Inaktivitetströskel',
+    pauseMusic: 'Pausa musik under pauser',
+    launchOnStartup: 'Starta med Windows',
+    postponeDuration: 'Uppskjutningsduration',
+    minutes: 'min',
+    nextBreak: 'Nästa paus',
+    paused: 'Pausad',
+    noBreaks: 'Inga pauser schemalagda',
+    soundNone: 'Inget',
+    soundChime: 'Klockor',
+    soundBell: 'Klocka',
+    soundSoft: 'Mjuk ton',
+    themeStillGarden: 'Stilla trädgård',
+    themeSoftDusk: 'Mjuk skymning',
+    themeMorningMist: 'Morgondimma',
+  },
+}
+
+export function useStrings(language: Language): Strings {
+  return translations[language] ?? translations.en
+}
