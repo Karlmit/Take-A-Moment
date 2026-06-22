@@ -58,6 +58,14 @@ function createOverlayForDisplay(display: Electron.Display): BrowserWindow {
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   win.setAlwaysOnTop(true, 'screen-saver')
 
+  // Keep the overlay always present and click-through when idle so the
+  // clip-path animation starts immediately on break-start with no
+  // window-appear latency (which would cause the animation to be skipped).
+  win.once('ready-to-show', () => {
+    win.show()
+    win.setIgnoreMouseEvents(true, { forward: true })
+  })
+
   if (process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/overlay/index.html`)
   } else {
@@ -177,8 +185,8 @@ function showOverlay(breakData: ActiveBreak): void {
     if (win.isDestroyed()) continue
     const send = () => {
       if (win.isDestroyed()) return
+      win.setIgnoreMouseEvents(false)
       win.webContents.send(IPC.BREAK_START, breakData)
-      win.show()
       win.focus()
     }
     if (win.webContents.isLoading()) {
@@ -191,7 +199,9 @@ function showOverlay(breakData: ActiveBreak): void {
 
 function hideOverlay(): void {
   for (const win of overlayWins) {
-    if (!win.isDestroyed() && win.isVisible()) win.hide()
+    if (!win.isDestroyed()) {
+      win.setIgnoreMouseEvents(true, { forward: true })
+    }
   }
 }
 
