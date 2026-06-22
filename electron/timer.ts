@@ -59,7 +59,6 @@ export class Timer extends EventEmitter {
     const now = Date.now()
     for (const [id, entry] of this.scheduled.entries()) {
       if (entry.nextAt <= now) {
-        this.scheduled.delete(id)
         this.onBreakDue(id)
       }
     }
@@ -114,6 +113,7 @@ export class Timer extends EventEmitter {
       return
     }
 
+    this.scheduled.delete(id)
     this.startBreak(reminder.id)
   }
 
