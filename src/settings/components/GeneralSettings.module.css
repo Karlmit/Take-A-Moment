@@ -80,6 +80,83 @@
   font-weight: var(--weight-medium);
 }
 
+/* Background picker */
+.bgGrid {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.bgOption {
+  flex: 1;
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  transition: border-color var(--t-base), box-shadow var(--t-base);
+  font-family: var(--font-body);
+}
+
+.bgOption:hover {
+  border-color: var(--color-sage-subtle);
+}
+
+.bgSelected {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.bgOption:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.bgPreview {
+  display: block;
+  width: 100%;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.bgPreview_default {
+  background: var(--color-ground);
+  border: 1px solid var(--border);
+}
+
+.bgPreview_mesh {
+  background:
+    radial-gradient(ellipse at 25% 35%, color-mix(in oklch, var(--primary) 55%, black 45%) 0%, transparent 60%),
+    radial-gradient(ellipse at 75% 70%, color-mix(in oklch, var(--primary) 30%, black 70%) 0%, transparent 55%),
+    #0a0a0a;
+}
+
+.bgPreview_aurora {
+  background:
+    radial-gradient(ellipse at 20% 75%, color-mix(in oklch, var(--primary) 50%, black 50%) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 25%, color-mix(in oklch, var(--primary) 35%, black 65%) 0%, transparent 50%),
+    #040404;
+}
+
+.bgPreview_shadway {
+  background: linear-gradient(
+    130deg,
+    color-mix(in oklch, var(--primary) 35%, white 65%) 0%,
+    color-mix(in oklch, var(--primary) 18%, white 82%) 50%,
+    color-mix(in oklch, var(--primary) 28%, white 72%) 100%
+  );
+}
+
+.bgLabel {
+  font-size: var(--text-label);
+  color: var(--text);
+  font-weight: var(--weight-medium);
+}
+
 /* Select */
 .select {
   padding: var(--space-2) var(--space-4);

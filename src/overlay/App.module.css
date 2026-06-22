@@ -5,8 +5,32 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Quiet Arrival Rule: barely-perceptible shadow to distinguish from desktop */
   box-shadow: 0 0 80px 0 oklch(0.20 0.025 140 / 0.06);
+}
+
+/* Animated background mode — transparent so the bg component shows through */
+.overlayDark {
+  background: transparent;
+  --text: rgba(255, 255, 255, 0.92);
+  --text-muted: rgba(255, 255, 255, 0.65);
+  --color-panel: rgba(255, 255, 255, 0.12);
+  --color-panel-hover: rgba(255, 255, 255, 0.22);
+}
+
+/* Background layer sits behind everything */
+.bgLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+/* Subtle dark veil over animated bg for text legibility */
+.bgVeil {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.22);
+  pointer-events: none;
 }
 
 .content {
@@ -17,6 +41,8 @@
   max-width: 640px;
   padding: var(--space-12);
   text-align: center;
+  position: relative;
+  z-index: 2;
 }
 
 /* One Script Rule: the display font appears exactly once */
@@ -39,7 +65,7 @@
   font-size: var(--text-label);
   font-weight: var(--weight-medium);
   color: var(--text-muted);
-  text-transform: none; /* No-Uppercase Rule */
+  text-transform: none;
   letter-spacing: 0;
 }
 
@@ -49,6 +75,11 @@
   color: var(--primary);
   font-variant-numeric: tabular-nums;
   line-height: 1;
+}
+
+/* Override countdown time color on dark bg for legibility */
+.overlayDark .countdownTime {
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .actions {
@@ -91,10 +122,25 @@
   transform: translateY(-1px);
 }
 
+/* On dark animated backgrounds, primary button becomes white */
+.overlayDark .btnPrimary {
+  background: rgba(255, 255, 255, 0.88);
+  color: oklch(0.15 0.02 260);
+}
+
+.overlayDark .btnPrimary:hover {
+  background: rgba(255, 255, 255, 1);
+}
+
 .btnPrimary:focus-visible,
 .btnSecondary:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 3px;
+}
+
+.overlayDark .btnPrimary:focus-visible,
+.overlayDark .btnSecondary:focus-visible {
+  outline-color: rgba(255, 255, 255, 0.7);
 }
 
 @media (prefers-reduced-motion: reduce) {

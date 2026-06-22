@@ -23,6 +23,7 @@ export interface AppSettings {
   postponeMinutes: number
   coverAllDisplays: boolean
   timeFormat: '24h' | '12h'
+  breakBackground: 'default' | 'mesh' | 'aurora' | 'shadway'
 }
 
 export interface ActiveBreak {
@@ -71,6 +72,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   postponeMinutes: 5,
   coverAllDisplays: true,
   timeFormat: '24h',
+  breakBackground: 'default',
 }
 
 const REMINDER_LABELS: Record<AppSettings['language'], string> = {

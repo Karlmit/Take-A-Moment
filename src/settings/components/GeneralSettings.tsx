@@ -40,6 +40,24 @@ export function GeneralSettings({ settings, t, version, onChange }: Props) {
         </div>
       </Section>
 
+      <Section title={t.breakBackground}>
+        <div className={styles.bgGrid}>
+          {(['default', 'mesh', 'aurora', 'shadway'] as const).map(bg => (
+            <button
+              key={bg}
+              type="button"
+              className={`${styles.bgOption} ${settings.breakBackground === bg ? styles.bgSelected : ''}`}
+              onClick={() => update({ breakBackground: bg })}
+            >
+              <span className={`${styles.bgPreview} ${styles[`bgPreview_${bg}`]}`} />
+              <span className={styles.bgLabel}>
+                {{ default: t.bgDefault, mesh: t.bgMesh, aurora: t.bgAurora, shadway: t.bgShadway }[bg]}
+              </span>
+            </button>
+          ))}
+        </div>
+      </Section>
+
       <Section title={t.language}>
         <select
           className={styles.select}

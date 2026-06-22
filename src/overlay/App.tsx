@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
-import type { ActiveBreak } from '../shared/types'
+import type { ActiveBreak, AppSettings } from '../shared/types'
 import { useStrings, type Language } from '../shared/i18n'
 import { playSound } from '../shared/sounds'
+import { MeshBackground } from './MeshBackground'
+import { AuroraBackground } from './AuroraBackground'
+import { ShadwayBackground } from './ShadwayBackground'
 import styles from './App.module.css'
 
 declare global {
@@ -24,6 +27,8 @@ export function App() {
   const [remainingMs, setRemainingMs] = useState(0)
   const [postponeMinutes, setPostponeMinutes] = useState(5)
   const [language, setLanguage] = useState<Language>('sv')
+  const [theme, setTheme] = useState('still-garden')
+  const [breakBackground, setBreakBackground] = useState<AppSettings['breakBackground']>('default')
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prefersReducedMotion = useReducedMotion()
   const t = useStrings(language)
@@ -37,9 +42,16 @@ export function App() {
 
   const breakDataRef = useRef<ActiveBreak | null>(null)
 
-  const applySettings = useCallback((s: { postponeMinutes: number; language: Language; theme: string }) => {
+  const applySettings = useCallback((s: {
+    postponeMinutes: number
+    language: Language
+    theme: string
+    breakBackground?: AppSettings['breakBackground']
+  }) => {
     setPostponeMinutes(s.postponeMinutes)
     setLanguage(s.language as Language)
+    setTheme(s.theme)
+    setBreakBackground(s.breakBackground ?? 'default')
     document.documentElement.setAttribute('data-theme', s.theme)
   }, [])
 
@@ -85,7 +97,8 @@ export function App() {
     window.api.postponeBreak()
   }
 
-  // Entrance: overlay "rolls" across the screen from top via clip-path
+  const isDarkBg = breakBackground !== 'default'
+
   const overlayVariants = prefersReducedMotion
     ? {
         hidden: { opacity: 0 },
@@ -118,13 +131,22 @@ export function App() {
     <AnimatePresence>
       {visible && breakData && (
         <motion.div
-          className={styles.overlay}
+          className={`${styles.overlay} ${isDarkBg ? styles.overlayDark : ''}`}
           variants={overlayVariants}
           initial="hidden"
           animate="visible"
           exit="exit"
           key="overlay"
         >
+          {isDarkBg && (
+            <div className={styles.bgLayer}>
+              {breakBackground === 'mesh' && <MeshBackground theme={theme} />}
+              {breakBackground === 'aurora' && <AuroraBackground theme={theme} />}
+              {breakBackground === 'shadway' && <ShadwayBackground theme={theme} />}
+              <div className={styles.bgVeil} />
+            </div>
+          )}
+
           <motion.div
             className={styles.content}
             variants={contentVariants}

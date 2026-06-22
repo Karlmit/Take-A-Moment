@@ -1,6 +1,6 @@
 {
   "name": "take-a-moment",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "description": "A gentle Windows break-reminder app",
   "main": "out/main/main.js",
   "scripts": {
@@ -11,6 +11,7 @@
     "package": "npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win"
   },
   "dependencies": {
+    "@paper-design/shaders-react": "^0.0.76",
     "framer-motion": "^11.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
@@ -31,12 +32,27 @@
     "directories": {
       "output": "release"
     },
-    "files": ["out/**/*"],
+    "files": [
+      "out/**/*"
+    ],
     "extraResources": [
-      { "from": "assets/icons", "to": "icons", "filter": ["**/*"] }
+      {
+        "from": "assets/icons",
+        "to": "icons",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "assets/icons/app-full.png",
       "requestedExecutionLevel": "asInvoker"
     },

@@ -68,6 +68,12 @@ interface Strings {
   timeFormat: string
   timeFormat24h: string
   timeFormat12h: string
+  // Break background
+  breakBackground: string
+  bgDefault: string
+  bgMesh: string
+  bgAurora: string
+  bgShadway: string
 }
 
 const translations: Record<Language, Strings> = {
@@ -130,6 +136,11 @@ const translations: Record<Language, Strings> = {
     timeFormat: 'Time format',
     timeFormat24h: '24-hour',
     timeFormat12h: '12-hour (AM/PM)',
+    breakBackground: 'Break background',
+    bgDefault: 'Solid',
+    bgMesh: 'Mesh',
+    bgAurora: 'Aurora',
+    bgShadway: 'Shader',
   },
   de: {
     appName: 'Take A Moment',
@@ -190,6 +201,11 @@ const translations: Record<Language, Strings> = {
     timeFormat: 'Zeitformat',
     timeFormat24h: '24-Stunden',
     timeFormat12h: '12-Stunden (AM/PM)',
+    breakBackground: 'Pausenhintergrund',
+    bgDefault: 'Einfarbig',
+    bgMesh: 'Mesh',
+    bgAurora: 'Aurora',
+    bgShadway: 'Shader',
   },
   fr: {
     appName: 'Take A Moment',
@@ -250,6 +266,11 @@ const translations: Record<Language, Strings> = {
     timeFormat: 'Format de l\'heure',
     timeFormat24h: '24 heures',
     timeFormat12h: '12 heures (AM/PM)',
+    breakBackground: 'Arrière-plan de pause',
+    bgDefault: 'Uni',
+    bgMesh: 'Maillage',
+    bgAurora: 'Aurora',
+    bgShadway: 'Shader',
   },
   es: {
     appName: 'Take A Moment',
@@ -310,6 +331,11 @@ const translations: Record<Language, Strings> = {
     timeFormat: 'Formato de hora',
     timeFormat24h: '24 horas',
     timeFormat12h: '12 horas (AM/PM)',
+    breakBackground: 'Fondo de descanso',
+    bgDefault: 'Sólido',
+    bgMesh: 'Malla',
+    bgAurora: 'Aurora',
+    bgShadway: 'Shader',
   },
   sv: {
     appName: 'Take A Moment',
@@ -370,6 +396,11 @@ const translations: Record<Language, Strings> = {
     timeFormat: 'Tidsformat',
     timeFormat24h: '24-timmar',
     timeFormat12h: '12-timmar (AM/PM)',
+    breakBackground: 'Pausbakgrund',
+    bgDefault: 'Enfärgad',
+    bgMesh: 'Mesh',
+    bgAurora: 'Aurora',
+    bgShadway: 'Shader',
   },
   nl: {
     appName: 'Take A Moment',
@@ -430,6 +461,11 @@ const translations: Record<Language, Strings> = {
     timeFormat: 'Tijdnotatie',
     timeFormat24h: '24-uurs',
     timeFormat12h: '12-uurs (AM/PM)',
+    breakBackground: 'Pauze achtergrond',
+    bgDefault: 'Effen',
+    bgMesh: 'Mesh',
+    bgAurora: 'Aurora',
+    bgShadway: 'Shader',
   },
   da: {
     appName: 'Take A Moment',
@@ -490,6 +526,11 @@ const translations: Record<Language, Strings> = {
     timeFormat: 'Tidsformat',
     timeFormat24h: '24-timer',
     timeFormat12h: '12-timer (AM/PM)',
+    breakBackground: 'Pausebaggrund',
+    bgDefault: 'Ensfarvet',
+    bgMesh: 'Mesh',
+    bgAurora: 'Aurora',
+    bgShadway: 'Shader',
   },
 }
 
