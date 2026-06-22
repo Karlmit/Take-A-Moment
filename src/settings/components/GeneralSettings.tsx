@@ -1,5 +1,6 @@
 import type { AppSettings } from '../../shared/types'
 import type { useStrings } from '../../shared/i18n'
+import { NumberInput } from './NumberInput'
 import styles from './GeneralSettings.module.css'
 
 type Strings = ReturnType<typeof useStrings>
@@ -58,13 +59,12 @@ export function GeneralSettings({ settings, t, onChange }: Props) {
         <div className={styles.fieldGroup}>
           <Row label={t.idleThreshold}>
             <div className={styles.inputWithUnit}>
-              <input
-                type="number"
+              <NumberInput
                 className={styles.numberInput}
                 min={1}
                 max={60}
                 value={settings.idleThresholdMinutes}
-                onChange={e => update({ idleThresholdMinutes: Number(e.target.value) })}
+                onChange={v => update({ idleThresholdMinutes: v })}
               />
               <span className={styles.unit}>{t.minutes}</span>
             </div>
@@ -72,13 +72,12 @@ export function GeneralSettings({ settings, t, onChange }: Props) {
 
           <Row label={t.postponeDuration}>
             <div className={styles.inputWithUnit}>
-              <input
-                type="number"
+              <NumberInput
                 className={styles.numberInput}
                 min={1}
                 max={60}
                 value={settings.postponeMinutes}
-                onChange={e => update({ postponeMinutes: Number(e.target.value) })}
+                onChange={v => update({ postponeMinutes: v })}
               />
               <span className={styles.unit}>{t.minutes}</span>
             </div>

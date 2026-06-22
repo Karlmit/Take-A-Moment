@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import type { Reminder } from '../../shared/types'
 import type { useStrings } from '../../shared/i18n'
 import { playSound } from '../../shared/sounds'
+import { NumberInput } from './NumberInput'
 import styles from './ReminderCard.module.css'
 
 type Strings = ReturnType<typeof useStrings>
@@ -148,23 +149,21 @@ export function ReminderCard({ reminder, t, onChange, onDelete, nextBreakAt }: P
 
               <div className={styles.row}>
                 <Field label={`${t.frequency} (${t.minutes})`}>
-                  <input
-                    type="number"
+                  <NumberInput
                     className={styles.input}
                     min={1}
                     max={480}
                     value={draft.frequencyMinutes}
-                    onChange={e => update({ frequencyMinutes: Number(e.target.value) })}
+                    onChange={v => update({ frequencyMinutes: v })}
                   />
                 </Field>
                 <Field label={`${t.duration} (${t.minutes})`}>
-                  <input
-                    type="number"
+                  <NumberInput
                     className={styles.input}
                     min={1}
                     max={60}
                     value={draft.durationMinutes}
-                    onChange={e => update({ durationMinutes: Number(e.target.value) })}
+                    onChange={v => update({ durationMinutes: v })}
                   />
                 </Field>
               </div>
