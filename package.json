@@ -1,6 +1,6 @@
 {
   "name": "take-a-moment",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "A gentle Windows break-reminder app",
   "main": "out/main/main.js",
   "scripts": {
@@ -47,6 +47,7 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Take A Moment",
+      "uninstallDisplayName": "Take A Moment",
       "runAfterFinish": true,
       "installerIcon": "assets/icons/app.ico",
       "uninstallerIcon": "assets/icons/app.ico",
