@@ -99,6 +99,24 @@ export function GeneralSettings({ settings, t, onChange }: Props) {
               window.api.setStartup(v)
             }}
           />
+
+          <ToggleRow
+            label={t.coverAllDisplays}
+            description={t.coverAllDisplaysDescription}
+            checked={settings.coverAllDisplays}
+            onChange={v => update({ coverAllDisplays: v })}
+          />
+
+          <Row label={t.timeFormat}>
+            <select
+              className={styles.select}
+              value={settings.timeFormat}
+              onChange={e => update({ timeFormat: e.target.value as '24h' | '12h' })}
+            >
+              <option value="24h">{t.timeFormat24h}</option>
+              <option value="12h">{t.timeFormat12h}</option>
+            </select>
+          </Row>
         </div>
       </Section>
     </div>

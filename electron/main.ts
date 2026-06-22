@@ -6,6 +6,7 @@ import {
   nativeImage,
   ipcMain,
   dialog,
+  screen,
 } from 'electron'
 import { join } from 'path'
 import { Store } from './store'
@@ -20,7 +21,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let tray: Tray | null = null
-let overlayWin: BrowserWindow | null = null
+let overlayWins: BrowserWindow[] = []
 let settingsWin: BrowserWindow | null = null
 let store: Store
 let timer: Timer
@@ -36,17 +37,17 @@ function iconPath(file: string): string {
 
 // ─── Window factories ───────────────────────────────────────────────────────
 
-function createOverlayWindow(): BrowserWindow {
+function createOverlayForDisplay(display: Electron.Display): BrowserWindow {
+  const { x, y, width, height } = display.bounds
   const win = new BrowserWindow({
-    width: 1920,
-    height: 1080,
+    x, y, width, height,
     show: false,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: false,
-    fullscreen: true,
+    movable: false,
     webPreferences: {
       preload: join(__dirname, '../preload/preload.js'),
       contextIsolation: true,
@@ -64,6 +65,23 @@ function createOverlayWindow(): BrowserWindow {
   }
 
   return win
+}
+
+function getTargetDisplays(): Electron.Display[] {
+  return store.get().coverAllDisplays
+    ? screen.getAllDisplays()
+    : [screen.getPrimaryDisplay()]
+}
+
+function ensureOverlayWindows(): void {
+  const displays = getTargetDisplays()
+  const valid = overlayWins.filter(w => !w.isDestroyed())
+  if (valid.length === displays.length) {
+    overlayWins = valid
+    return
+  }
+  for (const w of valid) w.destroy()
+  overlayWins = displays.map(d => createOverlayForDisplay(d))
 }
 
 function createSettingsWindow(): BrowserWindow {
@@ -103,10 +121,11 @@ function createSettingsWindow(): BrowserWindow {
 // ─── Tray ───────────────────────────────────────────────────────────────────
 
 function buildTrayMenu(status: TimerStatus): Electron.MenuItemConstructorOptions[] {
+  const hour12 = store.get().timeFormat === '12h'
   const nextLabel = status.paused
     ? 'Breaks paused'
     : status.nextBreak
-      ? `Next: ${status.nextBreak.label} at ${new Date(status.nextBreak.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      ? `Next: ${status.nextBreak.label} at ${new Date(status.nextBreak.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12 })}`
       : 'No breaks scheduled'
 
   return [
@@ -153,27 +172,26 @@ function createTray(): void {
 // ─── Break overlay management ────────────────────────────────────────────────
 
 function showOverlay(breakData: ActiveBreak): void {
-  if (!overlayWin || overlayWin.isDestroyed()) {
-    overlayWin = createOverlayWindow()
-  }
-
-  const send = () => {
-    if (!overlayWin || overlayWin.isDestroyed()) return
-    overlayWin.webContents.send(IPC.BREAK_START, breakData)
-    overlayWin.show()
-    overlayWin.focus()
-  }
-
-  if (overlayWin.webContents.isLoading()) {
-    overlayWin.webContents.once('did-finish-load', send)
-  } else {
-    send()
+  ensureOverlayWindows()
+  for (const win of overlayWins) {
+    if (win.isDestroyed()) continue
+    const send = () => {
+      if (win.isDestroyed()) return
+      win.webContents.send(IPC.BREAK_START, breakData)
+      win.show()
+      win.focus()
+    }
+    if (win.webContents.isLoading()) {
+      win.webContents.once('did-finish-load', send)
+    } else {
+      send()
+    }
   }
 }
 
 function hideOverlay(): void {
-  if (overlayWin?.isVisible()) {
-    overlayWin.hide()
+  for (const win of overlayWins) {
+    if (!win.isDestroyed() && win.isVisible()) win.hide()
   }
 }
 
@@ -205,6 +223,7 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IPC.SETTINGS_SAVE, (_e, settings: AppSettings) => {
     store.save(settings)
     timer.updateSettings(settings)
+    ensureOverlayWindows()
   })
 
   ipcMain.handle(IPC.APP_QUIT, () => app.exit(0))
@@ -239,7 +258,9 @@ app.whenReady().then(() => {
   })
 
   timer.on('break-end', () => {
-    overlayWin?.webContents.send(IPC.BREAK_END)
+    for (const win of overlayWins) {
+      if (!win.isDestroyed()) win.webContents.send(IPC.BREAK_END)
+    }
     settingsWin?.webContents.send(IPC.STATUS_CHANGED, timer.getStatus())
     setTimeout(() => hideOverlay(), 1000)
   })
@@ -249,7 +270,7 @@ app.whenReady().then(() => {
     settingsWin?.webContents.send(IPC.STATUS_CHANGED, status)
   })
 
-  overlayWin = createOverlayWindow()
+  ensureOverlayWindows()
   createTray()
 
   if (store.isFirstRun()) showSettings()

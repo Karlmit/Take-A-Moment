@@ -63,6 +63,11 @@ interface Strings {
   behaviour: string
   pauseMusicDescription: string
   startupDescription: string
+  coverAllDisplays: string
+  coverAllDisplaysDescription: string
+  timeFormat: string
+  timeFormat24h: string
+  timeFormat12h: string
 }
 
 const translations: Record<Language, Strings> = {
@@ -120,6 +125,11 @@ const translations: Record<Language, Strings> = {
     behaviour: 'Behaviour',
     pauseMusicDescription: 'Pauses media playback when a break starts',
     startupDescription: 'Run Take A Moment when you sign in to Windows',
+    coverAllDisplays: 'Cover all displays',
+    coverAllDisplaysDescription: 'Show the break overlay on every connected monitor',
+    timeFormat: 'Time format',
+    timeFormat24h: '24-hour',
+    timeFormat12h: '12-hour (AM/PM)',
   },
   de: {
     appName: 'Take A Moment',
@@ -175,6 +185,11 @@ const translations: Record<Language, Strings> = {
     behaviour: 'Verhalten',
     pauseMusicDescription: 'Pausiert die Medienwiedergabe beim Start einer Pause',
     startupDescription: 'Take A Moment beim Windows-Start ausführen',
+    coverAllDisplays: 'Alle Bildschirme abdecken',
+    coverAllDisplaysDescription: 'Pausenüberlagerung auf allen verbundenen Bildschirmen anzeigen',
+    timeFormat: 'Zeitformat',
+    timeFormat24h: '24-Stunden',
+    timeFormat12h: '12-Stunden (AM/PM)',
   },
   fr: {
     appName: 'Take A Moment',
@@ -230,6 +245,11 @@ const translations: Record<Language, Strings> = {
     behaviour: 'Comportement',
     pauseMusicDescription: 'Met en pause la lecture lors du début d\'une pause',
     startupDescription: 'Lancer Take A Moment à la connexion Windows',
+    coverAllDisplays: 'Couvrir tous les écrans',
+    coverAllDisplaysDescription: 'Afficher la pause sur tous les écrans connectés',
+    timeFormat: 'Format de l\'heure',
+    timeFormat24h: '24 heures',
+    timeFormat12h: '12 heures (AM/PM)',
   },
   es: {
     appName: 'Take A Moment',
@@ -285,6 +305,11 @@ const translations: Record<Language, Strings> = {
     behaviour: 'Comportamiento',
     pauseMusicDescription: 'Pausa la reproducción al iniciar un descanso',
     startupDescription: 'Ejecutar Take A Moment al iniciar sesión en Windows',
+    coverAllDisplays: 'Cubrir todas las pantallas',
+    coverAllDisplaysDescription: 'Mostrar la pausa en todos los monitores conectados',
+    timeFormat: 'Formato de hora',
+    timeFormat24h: '24 horas',
+    timeFormat12h: '12 horas (AM/PM)',
   },
   sv: {
     appName: 'Take A Moment',
@@ -340,6 +365,11 @@ const translations: Record<Language, Strings> = {
     behaviour: 'Beteende',
     pauseMusicDescription: 'Pausar mediauppspelning när en paus börjar',
     startupDescription: 'Kör Take A Moment när du loggar in på Windows',
+    coverAllDisplays: 'Täck alla skärmar',
+    coverAllDisplaysDescription: 'Visa pausöverlagringen på alla anslutna skärmar',
+    timeFormat: 'Tidsformat',
+    timeFormat24h: '24-timmar',
+    timeFormat12h: '12-timmar (AM/PM)',
   },
   nl: {
     appName: 'Take A Moment',
@@ -395,6 +425,11 @@ const translations: Record<Language, Strings> = {
     behaviour: 'Gedrag',
     pauseMusicDescription: 'Pauzeert mediaweergave wanneer een pauze begint',
     startupDescription: 'Take A Moment uitvoeren wanneer u zich aanmeldt bij Windows',
+    coverAllDisplays: 'Alle schermen bedekken',
+    coverAllDisplaysDescription: 'Toon de pauzeoverlay op alle verbonden schermen',
+    timeFormat: 'Tijdnotatie',
+    timeFormat24h: '24-uurs',
+    timeFormat12h: '12-uurs (AM/PM)',
   },
   da: {
     appName: 'Take A Moment',
@@ -450,6 +485,11 @@ const translations: Record<Language, Strings> = {
     behaviour: 'Adfærd',
     pauseMusicDescription: 'Pauser medieafspilning, når en pause begynder',
     startupDescription: 'Kør Take A Moment, når du logger ind på Windows',
+    coverAllDisplays: 'Dæk alle skærme',
+    coverAllDisplaysDescription: 'Vis pauseoverlay på alle tilsluttede skærme',
+    timeFormat: 'Tidsformat',
+    timeFormat24h: '24-timer',
+    timeFormat12h: '12-timer (AM/PM)',
   },
 }
 

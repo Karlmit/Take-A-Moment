@@ -122,6 +122,7 @@ export function App() {
                 key={r.id}
                 reminder={r}
                 t={t}
+                timeFormat={settings.timeFormat}
                 onChange={updateReminder}
                 onDelete={() => deleteReminder(r.id)}
                 nextBreakAt={status?.nextBreaks?.[r.id]}

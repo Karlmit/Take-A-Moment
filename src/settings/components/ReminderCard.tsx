@@ -14,10 +14,12 @@ function nextWholeHour(): string {
   return `${String(d.getHours()).padStart(2, '0')}:00`
 }
 
-function formatNextBreakTime(ts: number, t: Strings): string {
+function formatNextBreakTime(ts: number, t: Strings, timeFormat: '24h' | '12h'): string {
   const diff = ts - Date.now()
   const mins = Math.ceil(diff / 60000)
-  const timeStr = new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const timeStr = new Date(ts).toLocaleTimeString([], {
+    hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h',
+  })
   if (mins <= 0) return timeStr
   const now = new Date()
   const then = new Date(ts)
@@ -39,6 +41,7 @@ function soundLabel(v: SoundOption, t: Strings): string {
 interface Props {
   reminder: Reminder
   t: Strings
+  timeFormat: '24h' | '12h'
   onChange: (r: Reminder) => void
   onDelete: () => void
   nextBreakAt?: number
@@ -75,7 +78,7 @@ function SoundField({ label, value, onChange, onPlay, t }: {
   )
 }
 
-export function ReminderCard({ reminder, t, onChange, onDelete, nextBreakAt }: Props) {
+export function ReminderCard({ reminder, t, timeFormat, onChange, onDelete, nextBreakAt }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [draft, setDraft] = useState<Reminder>(reminder)
   const [startTimeLocked, setStartTimeLocked] = useState(reminder.startTime !== null)
@@ -251,7 +254,7 @@ export function ReminderCard({ reminder, t, onChange, onDelete, nextBreakAt }: P
                 {nextBreakAt !== undefined && nextBreakAt > 0 && (
                   <Field label={t.nextBreak}>
                     <span className={styles.nextBreakValue}>
-                      {formatNextBreakTime(nextBreakAt, t)}
+                      {formatNextBreakTime(nextBreakAt, t, timeFormat)}
                     </span>
                   </Field>
                 )}

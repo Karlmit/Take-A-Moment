@@ -21,6 +21,8 @@ export interface AppSettings {
   pauseMusicOnBreak: boolean
   launchOnStartup: boolean
   postponeMinutes: number
+  coverAllDisplays: boolean
+  timeFormat: '24h' | '12h'
 }
 
 export interface ActiveBreak {
@@ -67,6 +69,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   pauseMusicOnBreak: false,
   launchOnStartup: false,
   postponeMinutes: 5,
+  coverAllDisplays: true,
+  timeFormat: '24h',
 }
 
 const REMINDER_LABELS: Record<AppSettings['language'], string> = {
