@@ -7,11 +7,17 @@ import { DEFAULT_SETTINGS } from '../src/shared/types'
 export class Store {
   private filePath: string
   private data: AppSettings
+  private firstRun: boolean
 
   constructor() {
     const userDataPath = app.getPath('userData')
     this.filePath = join(userDataPath, 'settings.json')
+    this.firstRun = !existsSync(this.filePath)
     this.data = this.load()
+  }
+
+  isFirstRun(): boolean {
+    return this.firstRun
   }
 
   private load(): AppSettings {

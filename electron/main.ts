@@ -252,6 +252,8 @@ app.whenReady().then(() => {
   overlayWin = createOverlayWindow()
   createTray()
 
+  if (store.isFirstRun()) showSettings()
+
   app.on('second-instance', () => showSettings())
 })
 
