@@ -1,6 +1,6 @@
 {
   "name": "take-a-moment",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "A gentle Windows break-reminder app",
   "main": "out/main/main.js",
   "scripts": {

@@ -15,6 +15,9 @@
 !macroend
 
 !macro customInstall
+  ; Kill any running instance so the installer can replace locked files
+  ExecWait 'taskkill /F /IM "Take A Moment.exe" /T'
+  Sleep 1000
   ; Write language preference so the app applies it on first run
   FileOpen $0 "$INSTDIR\resources\install-config.json" w
   FileWrite $0 '{"language":"$R9"}'
