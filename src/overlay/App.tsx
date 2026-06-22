@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import type { ActiveBreak } from '../shared/types'
+import { useStrings, type Language } from '../shared/i18n'
 import { playSound } from '../shared/sounds'
 import styles from './App.module.css'
 
@@ -22,8 +23,10 @@ export function App() {
   const [visible, setVisible] = useState(false)
   const [remainingMs, setRemainingMs] = useState(0)
   const [postponeMinutes, setPostponeMinutes] = useState(5)
+  const [language, setLanguage] = useState<Language>('sv')
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const prefersReducedMotion = useReducedMotion()
+  const t = useStrings(language)
 
   const startTick = useCallback((endsAt: number) => {
     if (tickRef.current) clearInterval(tickRef.current)
@@ -35,7 +38,10 @@ export function App() {
   const breakDataRef = useRef<ActiveBreak | null>(null)
 
   useEffect(() => {
-    window.api.getSettings().then(s => setPostponeMinutes(s.postponeMinutes))
+    window.api.getSettings().then(s => {
+      setPostponeMinutes(s.postponeMinutes)
+      setLanguage(s.language)
+    })
 
     const offStart = window.api.onBreakStart((b) => {
       breakDataRef.current = b
@@ -123,7 +129,7 @@ export function App() {
             <p className={styles.message}>{breakData.reminder.message}</p>
 
             <div className={styles.countdown}>
-              <span className={styles.countdownLabel}>Break ends in</span>
+              <span className={styles.countdownLabel}>{t.breakEndsIn}</span>
               <span className={styles.countdownTime}>{formatTime(remainingMs)}</span>
             </div>
 
@@ -133,14 +139,14 @@ export function App() {
                 onClick={handleEndEarly}
                 type="button"
               >
-                End break early
+                {t.endBreakEarly}
               </button>
               <button
                 className={styles.btnPrimary}
                 onClick={handlePostpone}
                 type="button"
               >
-                Postpone {postponeMinutes} min
+                {t.postpone(postponeMinutes)}
               </button>
             </div>
           </motion.div>
