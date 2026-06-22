@@ -26,6 +26,7 @@ function newReminder(): Reminder {
     enabled: true,
     skipOnIdle: true,
     skipOnMedia: true,
+    volume: 80,
   }
 }
 
@@ -43,6 +44,10 @@ export function App() {
     const off = window.api.onStatusChanged(setStatus)
     return off
   }, [])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', settings.theme)
+  }, [settings.theme])
 
   const save = async (next: AppSettings) => {
     setSettings(next)

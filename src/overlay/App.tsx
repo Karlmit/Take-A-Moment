@@ -42,11 +42,11 @@ export function App() {
       setBreakData(b)
       setVisible(true)
       startTick(b.endsAt)
-      playSound(b.reminder.soundStart)
+      playSound(b.reminder.soundStart, b.reminder.volume)
     })
 
     const offEnd = window.api.onBreakEnd(() => {
-      if (breakDataRef.current) playSound(breakDataRef.current.reminder.soundEnd)
+      if (breakDataRef.current) playSound(breakDataRef.current.reminder.soundEnd, breakDataRef.current.reminder.volume)
       setVisible(false)
       setTimeout(() => {
         setBreakData(null)
@@ -64,7 +64,7 @@ export function App() {
 
   const handleEndEarly = () => {
     setVisible(false)
-    if (breakData) playSound(breakData.reminder.soundEnd)
+    if (breakData) playSound(breakData.reminder.soundEnd, breakData.reminder.volume)
     window.api.endBreak()
   }
 

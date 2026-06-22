@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Reminder } from '../../shared/types'
 import type { useStrings } from '../../shared/i18n'
+import { playSound } from '../../shared/sounds'
 import styles from './ReminderCard.module.css'
 
 type Strings = ReturnType<typeof useStrings>
@@ -18,6 +19,37 @@ interface Props {
   t: Strings
   onChange: (r: Reminder) => void
   onDelete: () => void
+}
+
+function SoundField({ label, value, onChange, onPlay, t }: {
+  label: string
+  value: SoundOption
+  onChange: (v: SoundOption) => void
+  onPlay: () => void
+  t: Strings
+}) {
+  return (
+    <Field label={label}>
+      <div className={styles.soundRow}>
+        <select
+          className={styles.select}
+          value={value}
+          onChange={e => onChange(e.target.value as SoundOption)}
+        >
+          {SOUND_OPTIONS.map(s => (
+            <option key={s} value={s}>{soundLabel(s, t)}</option>
+          ))}
+        </select>
+        <button
+          className={styles.playBtn}
+          type="button"
+          onClick={onPlay}
+          disabled={value === 'none'}
+          title="Preview sound"
+        >▶</button>
+      </div>
+    </Field>
+  )
 }
 
 export function ReminderCard({ reminder, t, onChange, onDelete }: Props) {
@@ -123,29 +155,35 @@ export function ReminderCard({ reminder, t, onChange, onDelete }: Props) {
               </Field>
 
               <div className={styles.row}>
-                <Field label={t.soundAtStart}>
-                  <select
-                    className={styles.select}
-                    value={draft.soundStart}
-                    onChange={e => update({ soundStart: e.target.value as SoundOption })}
-                  >
-                    {SOUND_OPTIONS.map(s => (
-                      <option key={s} value={s}>{soundLabel(s, t)}</option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label={t.soundAtEnd}>
-                  <select
-                    className={styles.select}
-                    value={draft.soundEnd}
-                    onChange={e => update({ soundEnd: e.target.value as SoundOption })}
-                  >
-                    {SOUND_OPTIONS.map(s => (
-                      <option key={s} value={s}>{soundLabel(s, t)}</option>
-                    ))}
-                  </select>
-                </Field>
+                <SoundField
+                  label={t.soundAtStart}
+                  value={draft.soundStart}
+                  onChange={v => update({ soundStart: v })}
+                  onPlay={() => playSound(draft.soundStart, draft.volume ?? 80)}
+                  t={t}
+                />
+                <SoundField
+                  label={t.soundAtEnd}
+                  value={draft.soundEnd}
+                  onChange={v => update({ soundEnd: v })}
+                  onPlay={() => playSound(draft.soundEnd, draft.volume ?? 80)}
+                  t={t}
+                />
               </div>
+
+              <Field label={t.volume}>
+                <div className={styles.volumeRow}>
+                  <input
+                    type="range"
+                    className={styles.volumeSlider}
+                    min={0}
+                    max={100}
+                    value={draft.volume ?? 80}
+                    onChange={e => update({ volume: Number(e.target.value) })}
+                  />
+                  <span className={styles.volumeValue}>{draft.volume ?? 80}%</span>
+                </div>
+              </Field>
 
               <div className={styles.checkboxRow}>
                 <Checkbox

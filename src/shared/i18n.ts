@@ -18,6 +18,7 @@ interface Strings {
   message: string
   soundAtStart: string
   soundAtEnd: string
+  volume: string
   skipWhenIdle: string
   skipWhenMedia: string
   save: string
@@ -64,6 +65,7 @@ const translations: Record<Language, Strings> = {
     message: 'Message',
     soundAtStart: 'Sound at start',
     soundAtEnd: 'Sound at end',
+    volume: 'Volume',
     skipWhenIdle: 'Skip when idle',
     skipWhenMedia: 'Skip when camera or mic is in use',
     save: 'Save',
@@ -104,6 +106,7 @@ const translations: Record<Language, Strings> = {
     message: 'Nachricht',
     soundAtStart: 'Ton beim Start',
     soundAtEnd: 'Ton am Ende',
+    volume: 'Lautstärke',
     skipWhenIdle: 'Überspringen wenn inaktiv',
     skipWhenMedia: 'Überspringen bei aktiver Kamera/Mikrofon',
     save: 'Speichern',
@@ -144,6 +147,7 @@ const translations: Record<Language, Strings> = {
     message: 'Message',
     soundAtStart: 'Son au début',
     soundAtEnd: 'Son à la fin',
+    volume: 'Volume',
     skipWhenIdle: 'Ignorer si inactif',
     skipWhenMedia: 'Ignorer si caméra ou micro actif',
     save: 'Enregistrer',
@@ -184,6 +188,7 @@ const translations: Record<Language, Strings> = {
     message: 'Mensaje',
     soundAtStart: 'Sonido al inicio',
     soundAtEnd: 'Sonido al final',
+    volume: 'Volumen',
     skipWhenIdle: 'Omitir si inactivo',
     skipWhenMedia: 'Omitir si cámara o micrófono activo',
     save: 'Guardar',
@@ -224,6 +229,7 @@ const translations: Record<Language, Strings> = {
     message: 'Meddelande',
     soundAtStart: 'Ljud vid start',
     soundAtEnd: 'Ljud vid slut',
+    volume: 'Volym',
     skipWhenIdle: 'Hoppa över vid inaktivitet',
     skipWhenMedia: 'Hoppa över vid aktiv kamera/mikrofon',
     save: 'Spara',

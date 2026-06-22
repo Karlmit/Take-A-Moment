@@ -9,6 +9,7 @@ export interface Reminder {
   enabled: boolean
   skipOnIdle: boolean
   skipOnMedia: boolean
+  volume: number
 }
 
 export interface AppSettings {
@@ -44,32 +45,21 @@ export interface TimerStatus {
 export const DEFAULT_SETTINGS: AppSettings = {
   reminders: [
     {
-      id: 'default-eye-rest',
-      label: 'Eye rest',
-      frequencyMinutes: 20,
-      durationMinutes: 1,
-      message: 'Look away from the screen.',
+      id: 'default-take-a-moment',
+      label: 'Take A Moment',
+      frequencyMinutes: 60,
+      durationMinutes: 5,
+      message: 'Stanna upp ett tag',
       soundStart: 'chime',
       soundEnd: 'soft',
       enabled: true,
       skipOnIdle: true,
       skipOnMedia: false,
-    },
-    {
-      id: 'default-stretch',
-      label: 'Stretch',
-      frequencyMinutes: 60,
-      durationMinutes: 3,
-      message: 'Stand up and stretch.',
-      soundStart: 'bell',
-      soundEnd: 'soft',
-      enabled: true,
-      skipOnIdle: true,
-      skipOnMedia: false,
+      volume: 80,
     },
   ],
   theme: 'still-garden',
-  language: 'en',
+  language: 'sv',
   idleThresholdMinutes: 5,
   pauseMusicOnBreak: false,
   launchOnStartup: false,
