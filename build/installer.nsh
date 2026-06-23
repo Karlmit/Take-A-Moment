@@ -51,8 +51,8 @@
   FileOpen $0 "$INSTDIR\resources\install-config.json" w
   FileWrite $0 '{"language":"$R9"}'
   FileClose $0
-  ; Auto-launch after silent install (company portal / Intune).
-  ; Non-silent installs are handled by runAfterFinish in electron-builder config.
-  IfSilent +1 +2
+  ; Brief pause so any residual file handles from the old process are released
+  ; before the new instance is launched (matters most for silent upgrades).
+  Sleep 1500
   ExecShell "open" "$INSTDIR\Take A Moment.exe"
 !macroend
