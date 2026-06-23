@@ -59,14 +59,6 @@ function createOverlayForDisplay(display: Electron.Display): BrowserWindow {
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
   win.setAlwaysOnTop(true, 'screen-saver')
 
-  // Keep the overlay always present and click-through when idle so the
-  // clip-path animation starts immediately on break-start with no
-  // window-appear latency (which would cause the animation to be skipped).
-  win.once('ready-to-show', () => {
-    win.show()
-    win.setIgnoreMouseEvents(true, { forward: true })
-  })
-
   if (process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/overlay/index.html`)
   } else {
@@ -198,6 +190,7 @@ function showOverlay(breakData: ActiveBreak): void {
     if (win.isDestroyed()) continue
     const send = () => {
       if (win.isDestroyed()) return
+      win.show()
       win.setFullScreen(true)
       win.setIgnoreMouseEvents(false)
       win.webContents.send(IPC.BREAK_START, breakData)
@@ -213,11 +206,9 @@ function showOverlay(breakData: ActiveBreak): void {
 
 function hideOverlay(): void {
   for (const win of overlayWins) {
-    if (!win.isDestroyed()) {
-      win.setFullScreen(false)
-      win.setIgnoreMouseEvents(true, { forward: true })
-    }
+    if (!win.isDestroyed()) win.destroy()
   }
+  overlayWins = []
 }
 
 function showSettings(): void {
@@ -246,7 +237,6 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IPC.SETTINGS_SAVE, (_e, settings: AppSettings) => {
     store.save(settings)
     timer.updateSettings(settings)
-    ensureOverlayWindows()
     for (const win of overlayWins) {
       if (!win.isDestroyed()) win.webContents.send(IPC.SETTINGS_CHANGED, settings)
     }
@@ -282,9 +272,11 @@ app.whenReady().then(() => {
 
   registerIpcHandlers()
 
-  screen.on('display-added', ensureOverlayWindows)
-  screen.on('display-removed', ensureOverlayWindows)
-  screen.on('display-metrics-changed', ensureOverlayWindows)
+  // Only resync overlay windows when a break is already showing.
+  const resyncIfActive = () => { if (overlayWins.length > 0) ensureOverlayWindows() }
+  screen.on('display-added', resyncIfActive)
+  screen.on('display-removed', resyncIfActive)
+  screen.on('display-metrics-changed', resyncIfActive)
 
   powerMonitor.on('lock-screen', () => timer.lockScreen())
   powerMonitor.on('unlock-screen', () => timer.unlockScreen())
@@ -307,7 +299,6 @@ app.whenReady().then(() => {
     settingsWin?.webContents.send(IPC.STATUS_CHANGED, status)
   })
 
-  ensureOverlayWindows()
   createTray()
 
   if (store.isFirstRun()) showSettings()
