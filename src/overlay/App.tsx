@@ -98,9 +98,12 @@ export function App() {
 
     const offEnd = window.api.onBreakEnd(() => {
       if (breakDataRef.current) playSound(breakDataRef.current.reminder.soundEnd, breakDataRef.current.reminder.volume)
-      setVisible(false)
+      // Unmount the overlay so AnimatePresence plays the radial "exit" variant.
+      // Do NOT setVisible(false) first — that collapses the overlay with the
+      // clip-path wipe and pre-empts the radial circle exit animation.
+      setArmed(false)
       setTimeout(() => {
-        setArmed(false)
+        setVisible(false)
         setBreakData(null)
         breakDataRef.current = null
         readyForBreakRef.current = null
@@ -117,14 +120,13 @@ export function App() {
     }
   }, [applySettings, prepareBreak])
 
+  // Let the backend drive the dismissal so onBreakEnd plays the radial exit
+  // animation (and the end sound) in one place, instead of collapsing here.
   const handleEndEarly = () => {
-    setVisible(false)
-    if (breakData) playSound(breakData.reminder.soundEnd, breakData.reminder.volume)
     window.api.endBreak()
   }
 
   const handlePostpone = () => {
-    setVisible(false)
     window.api.postponeBreak()
   }
 

@@ -625,7 +625,12 @@ fn postpone_break(runtime: State<Arc<Runtime>>) {
 
 #[tauri::command]
 fn preview_break(runtime: State<Arc<Runtime>>) {
-  runtime.preview()
+  // Sync commands run on the main thread. preview() builds overlay windows and
+  // queries monitors, which must dispatch to the event loop — doing that from
+  // the blocked main thread yields no monitors (so no overlay). Run it on a
+  // worker thread, exactly like the scheduler does for real breaks.
+  let runtime = runtime.inner().clone();
+  thread::spawn(move || runtime.preview());
 }
 
 #[tauri::command]
