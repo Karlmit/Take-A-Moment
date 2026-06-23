@@ -4,8 +4,8 @@ export interface Reminder {
   frequencyMinutes: number
   durationMinutes: number
   message: string
-  soundStart: 'chime' | 'bell' | 'soft' | 'none'
-  soundEnd: 'chime' | 'bell' | 'soft' | 'none'
+  soundStart: 'chime' | 'bell' | 'soft' | 'church-bell' | 'echo-flute' | 'pan-flute-a' | 'pan-flute-b' | 'pan-flute-d' | 'wind-breeze' | 'singing-bowl' | 'singing-bowl-deep' | 'none'
+  soundEnd: 'chime' | 'bell' | 'soft' | 'church-bell' | 'echo-flute' | 'pan-flute-a' | 'pan-flute-b' | 'pan-flute-d' | 'wind-breeze' | 'singing-bowl' | 'singing-bowl-deep' | 'none'
   enabled: boolean
   skipOnIdle: boolean
   skipOnMedia: boolean

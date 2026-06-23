@@ -84,7 +84,19 @@ function getTargetDisplays(): Electron.Display[] {
 function ensureOverlayWindows(): void {
   const displays = getTargetDisplays()
   const valid = overlayWins.filter(w => !w.isDestroyed())
-  if (valid.length === displays.length) {
+
+  // Check count AND that each target display has a window at its origin.
+  // A count-only check misses the case where the OS has repositioned windows
+  // (e.g. after a monitor sleeps or display config changes), causing two
+  // windows to sit on the same physical screen.
+  const coveredOrigins = new Set(valid.map(w => {
+    const b = w.getBounds()
+    return `${b.x},${b.y}`
+  }))
+  const inSync = valid.length === displays.length &&
+    displays.every(d => coveredOrigins.has(`${d.bounds.x},${d.bounds.y}`))
+
+  if (inSync) {
     overlayWins = valid
     return
   }
@@ -266,6 +278,10 @@ app.whenReady().then(() => {
   timer = new Timer(store.get())
 
   registerIpcHandlers()
+
+  screen.on('display-added', ensureOverlayWindows)
+  screen.on('display-removed', ensureOverlayWindows)
+  screen.on('display-metrics-changed', ensureOverlayWindows)
 
   timer.on('break-start', (b: ActiveBreak) => {
     showOverlay(b)

@@ -31,11 +31,25 @@ function formatNextBreakTime(ts: number, t: Strings, timeFormat: '24h' | '12h'):
   return timeStr
 }
 
-const SOUND_OPTIONS = ['none', 'chime', 'bell', 'soft'] as const
+const SOUND_OPTIONS = ['none', 'chime', 'bell', 'soft', 'church-bell', 'echo-flute', 'pan-flute-a', 'pan-flute-b', 'pan-flute-d', 'wind-breeze', 'singing-bowl', 'singing-bowl-deep'] as const
 type SoundOption = (typeof SOUND_OPTIONS)[number]
 
 function soundLabel(v: SoundOption, t: Strings): string {
-  return { none: t.soundNone, chime: t.soundChime, bell: t.soundBell, soft: t.soundSoft }[v]
+  const map: Record<SoundOption, string> = {
+    none: t.soundNone,
+    chime: t.soundChime,
+    bell: t.soundBell,
+    soft: t.soundSoft,
+    'church-bell': t.soundChurchBell,
+    'echo-flute': t.soundEchoFlute,
+    'pan-flute-a': t.soundPanFluteA,
+    'pan-flute-b': t.soundPanFluteB,
+    'pan-flute-d': t.soundPanFluteD,
+    'wind-breeze': t.soundWindBreeze,
+    'singing-bowl': t.soundSingingBowl,
+    'singing-bowl-deep': t.soundSingingBowlDeep,
+  }
+  return map[v]
 }
 
 interface Props {

@@ -1,9 +1,17 @@
-/**
- * Generates pleasant notification tones using the Web Audio API.
- * No audio files required — all tones are synthesised in the browser.
- */
+type SoundType = 'chime' | 'bell' | 'soft' | 'church-bell' | 'echo-flute' | 'pan-flute-a' | 'pan-flute-b' | 'pan-flute-d' | 'wind-breeze' | 'singing-bowl' | 'singing-bowl-deep' | 'none'
 
-type SoundType = 'chime' | 'bell' | 'soft' | 'none'
+const FILE_SOUNDS: Partial<Record<SoundType, string>> = {
+  'church-bell': 'church-bell.mp3',
+  'echo-flute': 'echo-flute.mp3',
+  'pan-flute-a': 'pan-flute-transition-a-4.mp3',
+  'pan-flute-b': 'pan-flute-transition-b-1.mp3',
+  'pan-flute-d': 'pan-flute-transition-d-1.mp3',
+  'wind-breeze': 'passing-by-wind-breeze-sound.mp3',
+  'singing-bowl': 'singing-bowl-hit-3.mp3',
+  'singing-bowl-deep': 'singing-bowl-male-frequency.mp3',
+}
+
+const bufferCache = new Map<string, AudioBuffer>()
 
 let ctx: AudioContext | null = null
 
@@ -85,10 +93,36 @@ function playSoft(v: number): void {
   osc.stop(ac.currentTime + 0.9)
 }
 
+async function playFile(filename: string, v: number): Promise<void> {
+  const ac = getCtx()
+  let buffer = bufferCache.get(filename)
+  if (!buffer) {
+    const url = new URL(`../sounds/${filename}`, location.href).href
+    const res = await fetch(url)
+    const arrayBuffer = await res.arrayBuffer()
+    buffer = await ac.decodeAudioData(arrayBuffer)
+    bufferCache.set(filename, buffer)
+  }
+  const source = ac.createBufferSource()
+  const gain = ac.createGain()
+  source.buffer = buffer
+  gain.gain.value = v
+  source.connect(gain)
+  gain.connect(ac.destination)
+  source.start()
+}
+
 export async function playSound(type: SoundType, volume = 80): Promise<void> {
   if (type === 'none') return
   const v = Math.max(0, Math.min(100, volume)) / 100
   try {
+    const ac = getCtx()
+    if (ac.state !== 'running') await ac.resume()
+    const file = FILE_SOUNDS[type]
+    if (file) {
+      await playFile(file, v)
+      return
+    }
     switch (type) {
       case 'chime': playChime(v); break
       case 'bell': playBell(v); break
