@@ -2,6 +2,9 @@ node_modules/
 dist/
 out/
 release/
+src-tauri/target/
+src-tauri/gen/
+*.tsbuildinfo
 .DS_Store
 *.log
 screenshots/

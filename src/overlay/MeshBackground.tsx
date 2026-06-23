@@ -25,7 +25,6 @@ export function MeshBackground({ theme }: { theme: string }) {
         height={dims.h}
         colors={colors}
         speed={0.3}
-        backgroundColor="#050a05"
       />
     </div>
   )

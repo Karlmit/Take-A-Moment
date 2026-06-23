@@ -1,0 +1,991 @@
+use chrono::{Local, Timelike};
+use serde::{Deserialize, Serialize};
+use std::{
+  collections::{HashMap, HashSet},
+  fs,
+  path::PathBuf,
+  process::Command,
+  sync::{Arc, Condvar, Mutex},
+  thread,
+  time::{Duration, SystemTime, UNIX_EPOCH},
+};
+use tauri::{
+  menu::{Menu, MenuItem, PredefinedMenuItem},
+  tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+  AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State, WebviewUrl,
+  WebviewWindowBuilder,
+};
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
+use tauri_plugin_dialog::DialogExt;
+
+const STATUS_CHANGED: &str = "timer:status-changed";
+const SETTINGS_CHANGED: &str = "settings:changed";
+const BREAK_START: &str = "break:start";
+const BREAK_PLAY: &str = "break:play";
+const BREAK_END: &str = "break:end";
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Reminder {
+  id: String,
+  label: String,
+  frequency_minutes: u32,
+  duration_minutes: u32,
+  message: String,
+  sound_start: String,
+  sound_end: String,
+  enabled: bool,
+  skip_on_idle: bool,
+  skip_on_media: bool,
+  volume: u32,
+  start_time: Option<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AppSettings {
+  reminders: Vec<Reminder>,
+  theme: String,
+  language: String,
+  idle_threshold_minutes: u32,
+  pause_music_on_break: bool,
+  launch_on_startup: bool,
+  postpone_minutes: u32,
+  cover_all_displays: bool,
+  time_format: String,
+  break_background: String,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ActiveBreak {
+  reminder_id: String,
+  reminder: Reminder,
+  started_at: u64,
+  ends_at: u64,
+  postpone_count: u32,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NextBreak {
+  reminder_id: String,
+  label: String,
+  scheduled_at: u64,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TimerStatus {
+  paused: bool,
+  next_break: Option<NextBreak>,
+  active_break: Option<ActiveBreak>,
+  next_breaks: HashMap<String, u64>,
+}
+
+#[derive(Clone)]
+struct ScheduledReminder {
+  reminder_id: String,
+  label: String,
+  next_at: u64,
+  skipped: bool,
+}
+
+struct OverlaySession {
+  expected: HashSet<String>,
+  ready: HashSet<String>,
+}
+
+struct Inner {
+  settings: AppSettings,
+  first_run: bool,
+  paused: bool,
+  active_break: Option<ActiveBreak>,
+  scheduled: HashMap<String, ScheduledReminder>,
+  overlay: Option<OverlaySession>,
+  paused_music: bool,
+}
+
+struct Runtime {
+  app: AppHandle,
+  settings_path: PathBuf,
+  inner: Mutex<Inner>,
+  wake: Condvar,
+}
+
+impl Runtime {
+  fn new(app: AppHandle) -> Result<Arc<Self>, String> {
+    let settings_path = app
+      .path()
+      .app_data_dir()
+      .map_err(|e| e.to_string())?
+      .join("settings.json");
+    let (settings, first_run) = load_settings(&app, &settings_path)?;
+    let runtime = Arc::new(Self {
+      app,
+      settings_path,
+      inner: Mutex::new(Inner {
+        settings,
+        first_run,
+        paused: false,
+        active_break: None,
+        scheduled: HashMap::new(),
+        overlay: None,
+        paused_music: false,
+      }),
+      wake: Condvar::new(),
+    });
+    runtime.reschedule_all();
+    Ok(runtime)
+  }
+
+  fn start_scheduler(self: &Arc<Self>) {
+    let runtime = Arc::clone(self);
+    thread::spawn(move || loop {
+      let due = {
+        let mut inner = runtime.inner.lock().unwrap();
+        loop {
+          if inner.paused || inner.active_break.is_some() {
+            inner = runtime.wake.wait(inner).unwrap();
+            continue;
+          }
+          let now = now_ms();
+          if let Some(entry) = inner.scheduled.values().min_by_key(|entry| entry.next_at) {
+            if entry.next_at <= now {
+              break Some(entry.reminder_id.clone());
+            }
+            let wait_ms = entry.next_at.saturating_sub(now).min(u32::MAX as u64);
+            let (next_inner, _) = runtime
+              .wake
+              .wait_timeout(inner, Duration::from_millis(wait_ms))
+              .unwrap();
+            inner = next_inner;
+          } else {
+            inner = runtime.wake.wait(inner).unwrap();
+          }
+        }
+      };
+      if let Some(id) = due {
+        runtime.on_break_due(&id);
+      }
+    });
+  }
+
+  fn status(&self) -> TimerStatus {
+    let inner = self.inner.lock().unwrap();
+    status_from_inner(&inner)
+  }
+
+  fn settings(&self) -> AppSettings {
+    self.inner.lock().unwrap().settings.clone()
+  }
+
+  fn is_first_run(&self) -> bool {
+    self.inner.lock().unwrap().first_run
+  }
+
+  fn save_settings(&self, settings: AppSettings) -> Result<(), String> {
+    if let Some(parent) = self.settings_path.parent() {
+      fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(
+      &self.settings_path,
+      serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+
+    {
+      let mut inner = self.inner.lock().unwrap();
+      inner.settings = merge_settings(settings);
+      inner.first_run = false;
+      reschedule_all_locked(&mut inner);
+    }
+    self.emit_settings();
+    self.emit_status();
+    self.wake.notify_all();
+    Ok(())
+  }
+
+  fn skip_next(&self) {
+    let mut inner = self.inner.lock().unwrap();
+    if let Some(id) = inner
+      .scheduled
+      .values()
+      .min_by_key(|entry| entry.next_at)
+      .map(|entry| entry.reminder_id.clone())
+    {
+      if let Some(entry) = inner.scheduled.get_mut(&id) {
+        entry.skipped = true;
+      }
+    }
+    drop(inner);
+    self.emit_status();
+    self.update_tray();
+  }
+
+  fn pause(&self) {
+    self.inner.lock().unwrap().paused = true;
+    self.wake.notify_all();
+    self.emit_status();
+    self.update_tray();
+  }
+
+  fn resume(&self) {
+    {
+      let mut inner = self.inner.lock().unwrap();
+      inner.paused = false;
+      if inner.active_break.is_none() {
+        reschedule_all_locked(&mut inner);
+      }
+    }
+    self.wake.notify_all();
+    self.emit_status();
+    self.update_tray();
+  }
+
+  fn preview(&self) {
+    let id = self
+      .inner
+      .lock()
+      .unwrap()
+      .settings
+      .reminders
+      .iter()
+      .find(|r| r.enabled)
+      .map(|r| r.id.clone());
+    if let Some(id) = id {
+      self.start_break(&id, 0);
+    }
+  }
+
+  fn end_break(&self) {
+    let ended = {
+      let mut inner = self.inner.lock().unwrap();
+      let Some(active) = inner.active_break.take() else {
+        return;
+      };
+      if inner.settings.pause_music_on_break && inner.paused_music {
+        inner.paused_music = false;
+        resume_system_media();
+      }
+      let reminder = inner
+        .settings
+        .reminders
+        .iter()
+        .find(|r| r.id == active.reminder_id && r.enabled)
+        .cloned();
+      if !inner.paused {
+        if let Some(reminder) = reminder {
+          schedule_locked(&mut inner, &reminder);
+        }
+      }
+      active
+    };
+    let _ = self.app.emit(BREAK_END, ended);
+    self.emit_status();
+    self.update_tray();
+    self.wake.notify_all();
+
+    let app = self.app.clone();
+    thread::spawn(move || {
+      thread::sleep(Duration::from_millis(2600));
+      destroy_overlay_windows(&app);
+    });
+  }
+
+  fn postpone_break(&self) {
+    let postponed = {
+      let mut inner = self.inner.lock().unwrap();
+      let Some(active) = inner.active_break.take() else {
+        return;
+      };
+      if inner.settings.pause_music_on_break && inner.paused_music {
+        inner.paused_music = false;
+        resume_system_media();
+      }
+      active
+    };
+    let delay = self.settings().postpone_minutes;
+    let runtime = self.app.state::<Arc<Runtime>>().inner().clone();
+    let postponed_for_timer = postponed.clone();
+    thread::spawn(move || {
+      thread::sleep(Duration::from_secs(delay as u64 * 60));
+      runtime.start_break(
+        &postponed_for_timer.reminder_id,
+        postponed_for_timer.postpone_count + 1,
+      );
+    });
+    let _ = self.app.emit(BREAK_END, postponed);
+    self.emit_status();
+    self.update_tray();
+    destroy_overlay_windows(&self.app);
+  }
+
+  fn overlay_ready(&self, label: String) {
+    let should_play = {
+      let mut inner = self.inner.lock().unwrap();
+      let Some(session) = inner.overlay.as_mut() else {
+        return;
+      };
+      session.ready.insert(label);
+      session.ready.len() >= session.expected.len()
+    };
+    if should_play {
+      self.show_overlay_windows();
+      let _ = self.app.emit(BREAK_PLAY, ());
+    }
+  }
+
+  fn reschedule_all(&self) {
+    {
+      let mut inner = self.inner.lock().unwrap();
+      reschedule_all_locked(&mut inner);
+    }
+    self.wake.notify_all();
+    self.emit_status();
+    self.update_tray();
+  }
+
+  fn on_break_due(&self, id: &str) {
+    let action = {
+      let mut inner = self.inner.lock().unwrap();
+      let Some(reminder) = inner.settings.reminders.iter().find(|r| r.id == id).cloned() else {
+        inner.scheduled.remove(id);
+        return;
+      };
+      if !reminder.enabled || inner.paused || inner.active_break.is_some() {
+        return;
+      }
+      if inner.scheduled.get(id).map(|e| e.skipped).unwrap_or(false) {
+        schedule_locked(&mut inner, &reminder);
+        Some(None)
+      } else if reminder.skip_on_idle && is_idle(inner.settings.idle_threshold_minutes) {
+        schedule_locked(&mut inner, &reminder);
+        Some(None)
+      } else if reminder.skip_on_media && is_media_in_use() {
+        schedule_locked(&mut inner, &reminder);
+        Some(None)
+      } else {
+        Some(Some(reminder.id.clone()))
+      }
+    };
+    match action {
+      Some(Some(reminder_id)) => self.start_break(&reminder_id, 0),
+      Some(None) => {
+        self.emit_status();
+        self.update_tray();
+        self.wake.notify_all();
+      }
+      None => {}
+    }
+  }
+
+  fn start_break(&self, reminder_id: &str, postpone_count: u32) {
+    let active = {
+      let mut inner = self.inner.lock().unwrap();
+      let Some(reminder) = inner
+        .settings
+        .reminders
+        .iter()
+        .find(|r| r.id == reminder_id)
+        .cloned()
+      else {
+        return;
+      };
+      if inner.settings.pause_music_on_break {
+        inner.paused_music = pause_system_media();
+      }
+      let now = now_ms();
+      let active = ActiveBreak {
+        reminder_id: reminder_id.to_string(),
+        reminder,
+        started_at: now,
+        ends_at: now + inner
+          .settings
+          .reminders
+          .iter()
+          .find(|r| r.id == reminder_id)
+          .map(|r| r.duration_minutes as u64)
+          .unwrap_or(1)
+          * 60_000,
+        postpone_count,
+      };
+      inner.scheduled.remove(reminder_id);
+      inner.active_break = Some(active.clone());
+      active
+    };
+    self.create_overlay_windows(active.clone());
+    self.emit_status();
+    self.update_tray();
+
+    let runtime = self.app.state::<Arc<Runtime>>().inner().clone();
+    thread::spawn(move || {
+      let wait = active.ends_at.saturating_sub(now_ms());
+      thread::sleep(Duration::from_millis(wait));
+      runtime.end_break();
+    });
+  }
+
+  fn create_overlay_windows(&self, active: ActiveBreak) {
+    destroy_overlay_windows(&self.app);
+    let settings = self.settings();
+    let monitors = if settings.cover_all_displays {
+      self.app.available_monitors().unwrap_or_default()
+    } else {
+      self
+        .app
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .into_iter()
+        .collect()
+    };
+    let mut built_labels = Vec::new();
+    for (i, monitor) in monitors.iter().enumerate() {
+      let label = format!("overlay-{i}");
+      let pos = monitor.position();
+      let size = monitor.size();
+      let window = WebviewWindowBuilder::new(
+        &self.app,
+        &label,
+        WebviewUrl::App("overlay/index.html".into()),
+      )
+      .title("Take A Moment")
+      .decorations(false)
+      .transparent(true)
+      .always_on_top(true)
+      .skip_taskbar(true)
+      .resizable(false)
+      .visible(false)
+      .inner_size(size.width as f64, size.height as f64)
+      .position(pos.x as f64, pos.y as f64)
+      .build();
+      if let Ok(window) = window {
+        let _ = window.set_size(PhysicalSize::new(size.width, size.height));
+        let _ = window.set_position(PhysicalPosition::new(pos.x, pos.y));
+        built_labels.push(label);
+      }
+    }
+    {
+      let mut inner = self.inner.lock().unwrap();
+      inner.overlay = Some(OverlaySession {
+        expected: built_labels.iter().cloned().collect(),
+        ready: HashSet::new(),
+      });
+    }
+    let _ = self.app.emit(BREAK_START, active);
+  }
+
+  fn show_overlay_windows(&self) {
+    for (_, window) in self.app.webview_windows() {
+      if window.label().starts_with("overlay-") {
+        let _ = window.set_fullscreen(true);
+        let _ = window.show();
+        let _ = window.set_focus();
+      }
+    }
+  }
+
+  fn emit_status(&self) {
+    let status = self.status();
+    let _ = self.app.emit(STATUS_CHANGED, status);
+  }
+
+  fn emit_settings(&self) {
+    let settings = self.settings();
+    let _ = self.app.emit(SETTINGS_CHANGED, settings);
+  }
+
+  fn update_tray(&self) {
+    let Some(tray) = self.app.tray_by_id("main") else {
+      return;
+    };
+    let status = self.status();
+    let tooltip = if status.paused {
+      "Take A Moment - paused".to_string()
+    } else if let Some(next) = status.next_break {
+      format!("Next: {}", next.label)
+    } else {
+      "Take A Moment".to_string()
+    };
+    let _ = tray.set_tooltip(Some(&tooltip));
+  }
+}
+
+#[tauri::command]
+fn get_timer_status(runtime: State<Arc<Runtime>>) -> TimerStatus {
+  runtime.status()
+}
+
+#[tauri::command]
+fn get_settings(runtime: State<Arc<Runtime>>) -> AppSettings {
+  runtime.settings()
+}
+
+#[tauri::command]
+fn save_settings(runtime: State<Arc<Runtime>>, settings: AppSettings) -> Result<(), String> {
+  runtime.save_settings(settings)
+}
+
+#[tauri::command]
+fn skip_next(runtime: State<Arc<Runtime>>) {
+  runtime.skip_next()
+}
+
+#[tauri::command]
+fn pause(runtime: State<Arc<Runtime>>) {
+  runtime.pause()
+}
+
+#[tauri::command]
+fn resume(runtime: State<Arc<Runtime>>) {
+  runtime.resume()
+}
+
+#[tauri::command]
+fn end_break(runtime: State<Arc<Runtime>>) {
+  runtime.end_break()
+}
+
+#[tauri::command]
+fn postpone_break(runtime: State<Arc<Runtime>>) {
+  runtime.postpone_break()
+}
+
+#[tauri::command]
+fn preview_break(runtime: State<Arc<Runtime>>) {
+  runtime.preview()
+}
+
+#[tauri::command]
+fn open_settings(app: AppHandle) -> Result<(), String> {
+  show_settings(&app)
+}
+
+#[tauri::command]
+fn quit(app: AppHandle) {
+  app.exit(0)
+}
+
+#[tauri::command]
+fn set_startup(app: AppHandle, enabled: bool) -> Result<(), String> {
+  let autostart = app.autolaunch();
+  if enabled {
+    autostart.enable().map_err(|e| e.to_string())
+  } else {
+    autostart.disable().map_err(|e| e.to_string())
+  }
+}
+
+#[tauri::command]
+fn get_version(app: AppHandle) -> String {
+  app.package_info().version.to_string()
+}
+
+#[tauri::command]
+fn is_first_run(runtime: State<Arc<Runtime>>) -> bool {
+  runtime.is_first_run()
+}
+
+#[tauri::command]
+async fn open_sound_file(app: AppHandle) -> Result<Option<String>, String> {
+  let file = app
+    .dialog()
+    .file()
+    .add_filter("Audio", &["mp3", "wav", "ogg", "m4a"])
+    .blocking_pick_file();
+  Ok(file.map(|p| p.to_string()))
+}
+
+#[tauri::command]
+fn overlay_ready(runtime: State<Arc<Runtime>>, label: String) {
+  runtime.overlay_ready(label)
+}
+
+pub fn run() {
+  tauri::Builder::default()
+    .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+      let _ = show_settings(app);
+    }))
+    .plugin(tauri_plugin_dialog::init())
+    .setup(|app| {
+      app.handle().plugin(tauri_plugin_autostart::init(
+        MacosLauncher::LaunchAgent,
+        None,
+      ))?;
+      let runtime = Runtime::new(app.handle().clone())?;
+      runtime.start_scheduler();
+      app.manage(runtime);
+      create_tray(app.handle())?;
+      if app.state::<Arc<Runtime>>().is_first_run() {
+        show_settings(app.handle())?;
+      }
+      Ok(())
+    })
+    .invoke_handler(tauri::generate_handler![
+      get_timer_status,
+      get_settings,
+      save_settings,
+      skip_next,
+      pause,
+      resume,
+      end_break,
+      postpone_break,
+      preview_break,
+      open_settings,
+      quit,
+      set_startup,
+      get_version,
+      open_sound_file,
+      is_first_run,
+      overlay_ready
+    ])
+    .run(tauri::generate_context!())
+    .expect("error while running Take A Moment");
+}
+
+fn create_tray(app: &AppHandle) -> tauri::Result<()> {
+  let skip = MenuItem::with_id(app, "skip", "Skip next break", true, None::<&str>)?;
+  let pause = MenuItem::with_id(app, "pause", "Pause / resume breaks", true, None::<&str>)?;
+  let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+  let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+  let sep = PredefinedMenuItem::separator(app)?;
+  let menu = Menu::with_items(app, &[&skip, &pause, &sep, &settings, &sep, &quit])?;
+
+  TrayIconBuilder::with_id("main")
+    .icon(app.default_window_icon().unwrap().clone())
+    .tooltip("Take A Moment")
+    .menu(&menu)
+    .show_menu_on_left_click(false)
+    .on_menu_event(|app, event| {
+      let runtime = app.state::<Arc<Runtime>>();
+      match event.id.as_ref() {
+        "skip" => runtime.skip_next(),
+        "pause" => {
+          if runtime.status().paused {
+            runtime.resume();
+          } else {
+            runtime.pause();
+          }
+        }
+        "settings" => {
+          let _ = show_settings(app);
+        }
+        "quit" => app.exit(0),
+        _ => {}
+      }
+    })
+    .on_tray_icon_event(|tray, event| {
+      if let TrayIconEvent::Click {
+        button: MouseButton::Left,
+        button_state: MouseButtonState::Up,
+        ..
+      } = event
+      {
+        let _ = show_settings(tray.app_handle());
+      }
+    })
+    .build(app)?;
+  Ok(())
+}
+
+fn show_settings(app: &AppHandle) -> Result<(), String> {
+  if let Some(window) = app.get_webview_window("settings") {
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())?;
+    return Ok(());
+  }
+  WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings/index.html".into()))
+    .title("Take A Moment - Settings")
+    .inner_size(680.0, 760.0)
+    .min_inner_size(560.0, 600.0)
+    .resizable(true)
+    .visible(true)
+    .build()
+    .map_err(|e| e.to_string())?;
+  Ok(())
+}
+
+fn destroy_overlay_windows(app: &AppHandle) {
+  for (_, window) in app.webview_windows() {
+    if window.label().starts_with("overlay-") {
+      let _ = window.close();
+    }
+  }
+}
+
+fn status_from_inner(inner: &Inner) -> TimerStatus {
+  let mut next_break = None;
+  let mut earliest = u64::MAX;
+  let mut next_breaks = HashMap::new();
+  for entry in inner.scheduled.values() {
+    next_breaks.insert(entry.reminder_id.clone(), entry.next_at);
+    if entry.next_at < earliest {
+      earliest = entry.next_at;
+      next_break = Some(NextBreak {
+        reminder_id: entry.reminder_id.clone(),
+        label: entry.label.clone(),
+        scheduled_at: entry.next_at,
+      });
+    }
+  }
+  TimerStatus {
+    paused: inner.paused,
+    next_break,
+    active_break: inner.active_break.clone(),
+    next_breaks,
+  }
+}
+
+fn reschedule_all_locked(inner: &mut Inner) {
+  inner.scheduled.clear();
+  if inner.paused || inner.active_break.is_some() {
+    return;
+  }
+  let reminders = inner.settings.reminders.clone();
+  for reminder in reminders.iter().filter(|r| r.enabled) {
+    schedule_locked(inner, reminder);
+  }
+}
+
+fn schedule_locked(inner: &mut Inner, reminder: &Reminder) {
+  let next_at = reminder
+    .start_time
+    .as_deref()
+    .map(|start| next_occurrence_from_anchor(start, reminder.frequency_minutes))
+    .unwrap_or_else(|| now_ms() + reminder.frequency_minutes as u64 * 60_000);
+  inner.scheduled.insert(
+    reminder.id.clone(),
+    ScheduledReminder {
+      reminder_id: reminder.id.clone(),
+      label: reminder.label.clone(),
+      next_at,
+      skipped: false,
+    },
+  );
+}
+
+fn next_occurrence_from_anchor(start: &str, frequency_minutes: u32) -> u64 {
+  let parts: Vec<_> = start.split(':').collect();
+  let hour = parts.first().and_then(|v| v.parse::<u32>().ok()).unwrap_or(0);
+  let minute = parts.get(1).and_then(|v| v.parse::<u32>().ok()).unwrap_or(0);
+  let now = Local::now();
+  let Some(anchor) = now.with_hour(hour).and_then(|d| d.with_minute(minute)).and_then(|d| d.with_second(0)).and_then(|d| d.with_nanosecond(0)) else {
+    return now_ms() + frequency_minutes as u64 * 60_000;
+  };
+  let anchor_ms = anchor.timestamp_millis() as u64;
+  let now_ms = now_ms();
+  if anchor_ms > now_ms {
+    return anchor_ms;
+  }
+  let interval = frequency_minutes as u64 * 60_000;
+  anchor_ms + (((now_ms - anchor_ms) / interval) + 1) * interval
+}
+
+fn now_ms() -> u64 {
+  SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .unwrap_or_default()
+    .as_millis() as u64
+}
+
+fn load_settings(app: &AppHandle, path: &PathBuf) -> Result<(AppSettings, bool), String> {
+  if path.exists() {
+    let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let parsed: serde_json::Value = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+    let settings: AppSettings = serde_json::from_value(merge_json(default_settings(), parsed))
+      .map_err(|e| e.to_string())?;
+    return Ok((merge_settings(settings), false));
+  }
+
+  if let Some(language) = read_install_language(app) {
+    let settings = default_settings_for_language(&language);
+    if let Some(parent) = path.parent() {
+      fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(
+      path,
+      serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+    return Ok((settings, false));
+  }
+
+  Ok((default_settings(), true))
+}
+
+fn read_install_language(app: &AppHandle) -> Option<String> {
+  let resource_dir = app.path().resource_dir().ok()?;
+  let path = resource_dir.join("install-config.json");
+  let raw = fs::read_to_string(&path).ok()?;
+  let _ = fs::remove_file(path);
+  serde_json::from_str::<serde_json::Value>(&raw)
+    .ok()?
+    .get("language")?
+    .as_str()
+    .map(ToOwned::to_owned)
+}
+
+fn merge_json(mut base: AppSettings, patch: serde_json::Value) -> serde_json::Value {
+  let mut base = serde_json::to_value(&mut base).unwrap();
+  merge_value(&mut base, patch);
+  base
+}
+
+fn merge_value(base: &mut serde_json::Value, patch: serde_json::Value) {
+  match (base, patch) {
+    (serde_json::Value::Object(base), serde_json::Value::Object(patch)) => {
+      for (key, value) in patch {
+        merge_value(base.entry(key).or_insert(serde_json::Value::Null), value);
+      }
+    }
+    (base, patch) => *base = patch,
+  }
+}
+
+fn merge_settings(mut settings: AppSettings) -> AppSettings {
+  for reminder in &mut settings.reminders {
+    if reminder.volume == 0 {
+      reminder.volume = 80;
+    }
+  }
+  settings
+}
+
+fn default_settings_for_language(language: &str) -> AppSettings {
+  let safe = match language {
+    "en" | "de" | "fr" | "es" | "sv" | "nl" | "da" => language,
+    _ => "sv",
+  };
+  let mut settings = default_settings();
+  settings.language = safe.to_string();
+  let (label, message) = match safe {
+    "en" => ("Take A Moment", "Take A Moment"),
+    "de" => ("Einen Moment", "Nimm dir einen Moment"),
+    "fr" => ("Un moment", "Prenez un moment"),
+    "es" => ("Un momento", "Tómate un momento"),
+    "nl" => ("Neem even een moment", "Neem even een moment"),
+    "da" => ("Tag et øjeblik", "Tag et øjeblik"),
+    _ => ("Stanna upp ett tag", "Stanna upp ett tag"),
+  };
+  if let Some(reminder) = settings.reminders.first_mut() {
+    reminder.label = label.to_string();
+    reminder.message = message.to_string();
+  }
+  settings
+}
+
+fn default_settings() -> AppSettings {
+  AppSettings {
+    reminders: vec![Reminder {
+      id: "default-take-a-moment".into(),
+      label: "Stanna upp ett tag".into(),
+      frequency_minutes: 60,
+      duration_minutes: 5,
+      message: "Stanna upp ett tag".into(),
+      sound_start: "chime".into(),
+      sound_end: "soft".into(),
+      enabled: true,
+      skip_on_idle: true,
+      skip_on_media: false,
+      volume: 80,
+      start_time: None,
+    }],
+    theme: "still-garden".into(),
+    language: "sv".into(),
+    idle_threshold_minutes: 5,
+    pause_music_on_break: false,
+    launch_on_startup: false,
+    postpone_minutes: 5,
+    cover_all_displays: true,
+    time_format: "24h".into(),
+    break_background: "default".into(),
+  }
+}
+
+#[cfg(windows)]
+fn is_idle(threshold_minutes: u32) -> bool {
+  use std::mem::size_of;
+  use windows::Win32::{
+    System::SystemInformation::GetTickCount64,
+    UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO},
+  };
+  unsafe {
+    let mut info = LASTINPUTINFO {
+      cbSize: size_of::<LASTINPUTINFO>() as u32,
+      dwTime: 0,
+    };
+    if GetLastInputInfo(&mut info).as_bool() {
+      let idle_ms = GetTickCount64().saturating_sub(info.dwTime as u64);
+      return idle_ms >= threshold_minutes as u64 * 60_000;
+    }
+  }
+  false
+}
+
+#[cfg(not(windows))]
+fn is_idle(_threshold_minutes: u32) -> bool {
+  false
+}
+
+fn is_media_in_use() -> bool {
+  if !cfg!(windows) {
+    return false;
+  }
+  let output = Command::new("reg")
+    .args([
+      "query",
+      r"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore",
+      "/s",
+      "/v",
+      "LastUsedTimeStop",
+    ])
+    .output();
+  output
+    .ok()
+    .and_then(|o| String::from_utf8(o.stdout).ok())
+    .map(|s| s.lines().any(|line| line.contains("LastUsedTimeStop") && line.contains("0x0")))
+    .unwrap_or(false)
+}
+
+fn pause_system_media() -> bool {
+  if !cfg!(windows) {
+    return false;
+  }
+  run_powershell(PAUSE_SCRIPT).map(|code| code == 0).unwrap_or(false)
+}
+
+fn resume_system_media() {
+  if cfg!(windows) {
+    let _ = run_powershell(RESUME_SCRIPT);
+  }
+}
+
+fn run_powershell(script: &str) -> std::io::Result<i32> {
+  let status = Command::new("powershell.exe")
+    .args(["-NoProfile", "-NonInteractive", "-Command", script])
+    .status()?;
+  Ok(status.code().unwrap_or(1))
+}
+
+const PAUSE_SCRIPT: &str = r#"
+Add-Type -AssemblyName 'System.Runtime.WindowsRuntime'
+[void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media, ContentType=WindowsRuntime]
+$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 })[0]
+$mgrTask = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()
+$mgr = $asTask.MakeGenericMethod($mgrTask.GetType().GenericTypeArguments[0]).Invoke($null, @($mgrTask)).GetAwaiter().GetResult()
+$session = $mgr.GetCurrentSession()
+if ($null -eq $session) { exit 1 }
+$status = $session.GetPlaybackInfo().PlaybackStatus
+if ($status -ne [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus]::Playing) { exit 1 }
+Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, int extra);' -Name U32 -Namespace TAM
+[TAM.U32]::keybd_event(0xB3, 0, 0, 0)
+[TAM.U32]::keybd_event(0xB3, 0, 2, 0)
+exit 0
+"#;
+
+const RESUME_SCRIPT: &str = r#"
+Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, int extra);' -Name U32 -Namespace TAM
+[TAM.U32]::keybd_event(0xB3, 0, 0, 0)
+[TAM.U32]::keybd_event(0xB3, 0, 2, 0)
+"#;

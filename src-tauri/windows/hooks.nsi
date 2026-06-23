@@ -1,15 +1,8 @@
-; Take A Moment — custom NSIS installer script
-; Silent install with optional language flag:
-;   "Take A Moment Setup 0.7.x.exe" /S /language=en
-; Without /language=, the app shows its own language picker on first run.
-
 !include "FileFunc.nsh"
 !insertmacro GetParameters
 !insertmacro GetOptions
 
-!macro customInit
-  ; $R9 holds the install language if explicitly passed via /language=<code>.
-  ; If not passed, $R9 stays empty and the in-app picker handles it.
+!macro NSIS_HOOK_PREINSTALL
   StrCpy $R9 ""
   ${GetParameters} $R8
   ClearErrors
@@ -17,15 +10,10 @@
   IfErrors +2
   Goto +1
 
-  ; Kill any running instance before files are touched.
   nsExec::ExecToLog 'taskkill /F /IM "Take A Moment.exe" /T'
   Pop $0
   Sleep 1000
 
-  ; Migrate: remove existing per-user installs before installing system-wide.
-  ; Writes a temp PowerShell script that:
-  ;   1. Removes the HKCU uninstall registry entry for all currently loaded user hives
-  ;   2. Deletes the per-user install directory and shortcuts for every profile
   FileOpen $9 "$TEMP\tam-migrate.ps1" w
   FileWrite $9 '$$n="Take A Moment"; $$u="Software\Microsoft\Windows\CurrentVersion\Uninstall"$\n'
   FileWrite $9 'foreach($$s in (Get-ChildItem "Registry::HKEY_USERS" -EA 0|?{$$_.PSChildName -match "^S-1-5-21"})){$\n'
@@ -44,15 +32,11 @@
   Delete "$TEMP\tam-migrate.ps1"
 !macroend
 
-!macro customInstall
-  ; Only write install-config.json when /language= was explicitly provided.
-  ; Without it the app shows its own language picker on first run.
+!macro NSIS_HOOK_POSTINSTALL
   StrCmp $R9 "" +4
   FileOpen $0 "$INSTDIR\resources\install-config.json" w
   FileWrite $0 '{"language":"$R9"}'
   FileClose $0
-  ; Brief pause so any residual file handles from the old process are released
-  ; before the new instance is launched (matters most for silent upgrades).
   Sleep 1500
   ExecShell "open" "$INSTDIR\Take A Moment.exe"
 !macroend

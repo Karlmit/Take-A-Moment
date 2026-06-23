@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion, type Variants } from 'framer-motion'
+import { invoke } from '@tauri-apps/api/core'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { ActiveBreak, AppSettings } from '../shared/types'
 import { useStrings, type Language } from '../shared/i18n'
-import { playSound } from '../shared/sounds'
+import { playSound, preloadSound } from '../shared/sounds'
 import { MeshBackground } from './MeshBackground'
 import { AuroraBackground } from './AuroraBackground'
 import { ShadwayBackground } from './ShadwayBackground'
@@ -23,6 +25,7 @@ function formatTime(ms: number): string {
 
 export function App() {
   const [breakData, setBreakData] = useState<ActiveBreak | null>(null)
+  const [armed, setArmed] = useState(false)
   const [visible, setVisible] = useState(false)
   const [remainingMs, setRemainingMs] = useState(0)
   const [postponeMinutes, setPostponeMinutes] = useState(5)
@@ -30,6 +33,7 @@ export function App() {
   const [theme, setTheme] = useState('still-garden')
   const [breakBackground, setBreakBackground] = useState<AppSettings['breakBackground']>('default')
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const readyForBreakRef = useRef<string | null>(null)
   const prefersReducedMotion = useReducedMotion()
   const t = useStrings(language)
 
@@ -55,25 +59,51 @@ export function App() {
     document.documentElement.setAttribute('data-theme', s.theme)
   }, [])
 
+  const prepareBreak = useCallback(async (b: ActiveBreak) => {
+    breakDataRef.current = b
+    setBreakData(b)
+    setArmed(true)
+    setVisible(false)
+    startTick(b.endsAt)
+
+    await Promise.all([
+      preloadSound(b.reminder.soundStart),
+      preloadSound(b.reminder.soundEnd),
+      new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    ])
+
+    if (readyForBreakRef.current !== `${b.reminderId}:${b.startedAt}`) {
+      readyForBreakRef.current = `${b.reminderId}:${b.startedAt}`
+      await invoke('overlay_ready', { label: getCurrentWebviewWindow().label })
+    }
+  }, [startTick])
+
   useEffect(() => {
     window.api.getSettings().then(applySettings)
+    window.api.getTimerStatus().then(status => {
+      if (status.activeBreak) prepareBreak(status.activeBreak)
+    })
 
     const offSettings = window.api.onSettingsChanged(applySettings)
 
     const offStart = window.api.onBreakStart((b) => {
-      breakDataRef.current = b
-      setBreakData(b)
+      prepareBreak(b)
+    })
+
+    const offPlay = window.api.onBreakPlay(() => {
       setVisible(true)
-      startTick(b.endsAt)
-      playSound(b.reminder.soundStart, b.reminder.volume)
+      const b = breakDataRef.current
+      if (b) playSound(b.reminder.soundStart, b.reminder.volume)
     })
 
     const offEnd = window.api.onBreakEnd(() => {
       if (breakDataRef.current) playSound(breakDataRef.current.reminder.soundEnd, breakDataRef.current.reminder.volume)
       setVisible(false)
       setTimeout(() => {
+        setArmed(false)
         setBreakData(null)
         breakDataRef.current = null
+        readyForBreakRef.current = null
       }, 600)
       if (tickRef.current) clearInterval(tickRef.current)
     })
@@ -81,10 +111,11 @@ export function App() {
     return () => {
       offSettings()
       offStart()
+      offPlay()
       offEnd()
       if (tickRef.current) clearInterval(tickRef.current)
     }
-  }, [startTick, applySettings])
+  }, [applySettings, prepareBreak])
 
   const handleEndEarly = () => {
     setVisible(false)
@@ -99,14 +130,14 @@ export function App() {
 
   const isDarkBg = breakBackground !== 'default'
 
-  const overlayVariants = prefersReducedMotion
+  const overlayVariants = (prefersReducedMotion
     ? {
         hidden: { opacity: 0 },
         visible: { opacity: 1, transition: { duration: 0.3 } },
         exit: { opacity: 0, transition: { duration: 0.3 } },
       }
     : {
-        hidden: { clipPath: 'inset(0 0 100% 0)', '--hole-pct': -20 },
+        hidden: { clipPath: 'inset(0 0 100% 0)', '--hole-pct': -20 } as Record<string, string | number>,
         visible: {
           clipPath: 'inset(0 0 0% 0)',
           '--hole-pct': -20,
@@ -121,8 +152,9 @@ export function App() {
               ease: 'linear',
             },
           },
-        },
+        } as Record<string, string | number | object>,
       }
+  ) as Variants
 
   const contentVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -136,12 +168,12 @@ export function App() {
 
   return (
     <AnimatePresence>
-      {visible && breakData && (
+      {armed && breakData && (
         <motion.div
           className={`${styles.overlay} ${isDarkBg ? styles.overlayDark : ''}`}
           variants={overlayVariants}
           initial="hidden"
-          animate="visible"
+          animate={visible ? 'visible' : 'hidden'}
           exit="exit"
           key="overlay"
         >
