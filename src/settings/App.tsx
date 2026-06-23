@@ -38,6 +38,7 @@ export function App() {
   const [status, setStatus] = useState<TimerStatus | null>(null)
   const [version, setVersion] = useState('')
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
   const [activeTab, setActiveTab] = useState<'reminders' | 'general'>('reminders')
   const [showLanguagePicker, setShowLanguagePicker] = useState(false)
   const t = useStrings(settings.language)
@@ -54,9 +55,15 @@ export function App() {
 
   const pickLanguage = async (language: Language) => {
     const next = getDefaultSettingsForLanguage(language)
-    setSettings(next)
-    await window.api.saveSettings(next)
-    setShowLanguagePicker(false)
+    try {
+      await window.api.saveSettings(next)
+      setSettings(next)
+      setStatus(await window.api.getTimerStatus())
+      setShowLanguagePicker(false)
+      setError('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
   }
 
   useEffect(() => {
@@ -64,10 +71,28 @@ export function App() {
   }, [settings.theme])
 
   const save = async (next: AppSettings) => {
-    setSettings(next)
-    await window.api.saveSettings(next)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    try {
+      await window.api.saveSettings(next)
+      setSettings(next)
+      // The backend reschedules on save; pull the authoritative status back so
+      // the status bar and per-reminder "next break" times reflect the new
+      // schedule immediately instead of waiting on an event.
+      setStatus(await window.api.getTimerStatus())
+      setError('')
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const preview = async () => {
+    try {
+      setError('')
+      await window.api.previewBreak()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
   }
 
   const addReminder = () => {
@@ -103,11 +128,17 @@ export function App() {
               </motion.span>
             )}
           </AnimatePresence>
-          <button className={styles.previewBtn} onClick={() => window.api.previewBreak()} type="button">
+          <button className={styles.previewBtn} onClick={preview} type="button">
             {t.preview}
           </button>
         </div>
       </header>
+
+      {error && (
+        <div className={styles.errorBanner} role="alert">
+          {error}
+        </div>
+      )}
 
       {status && <StatusBar status={status} t={t} onSkip={() => window.api.skipNext()} onTogglePause={() => status.paused ? window.api.resume() : window.api.pause()} />}
 

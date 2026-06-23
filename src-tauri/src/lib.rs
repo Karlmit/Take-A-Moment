@@ -10,13 +10,13 @@ use std::{
   time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tauri::{
+  image::Image,
   menu::{Menu, MenuItem, PredefinedMenuItem},
   tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
   AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, State, WebviewUrl,
-  WebviewWindowBuilder,
+  WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
-use tauri_plugin_dialog::DialogExt;
 
 const STATUS_CHANGED: &str = "timer:status-changed";
 const SETTINGS_CHANGED: &str = "settings:changed";
@@ -100,6 +100,7 @@ struct Inner {
   settings: AppSettings,
   first_run: bool,
   paused: bool,
+  system_locked: bool,
   active_break: Option<ActiveBreak>,
   scheduled: HashMap<String, ScheduledReminder>,
   overlay: Option<OverlaySession>,
@@ -115,11 +116,7 @@ struct Runtime {
 
 impl Runtime {
   fn new(app: AppHandle) -> Result<Arc<Self>, String> {
-    let settings_path = app
-      .path()
-      .app_data_dir()
-      .map_err(|e| e.to_string())?
-      .join("settings.json");
+    let settings_path = legacy_settings_path(&app)?;
     let (settings, first_run) = load_settings(&app, &settings_path)?;
     let runtime = Arc::new(Self {
       app,
@@ -128,6 +125,7 @@ impl Runtime {
         settings,
         first_run,
         paused: false,
+        system_locked: false,
         active_break: None,
         scheduled: HashMap::new(),
         overlay: None,
@@ -145,7 +143,7 @@ impl Runtime {
       let due = {
         let mut inner = runtime.inner.lock().unwrap();
         loop {
-          if inner.paused || inner.active_break.is_some() {
+          if inner.paused || inner.system_locked || inner.active_break.is_some() {
             inner = runtime.wake.wait(inner).unwrap();
             continue;
           }
@@ -206,6 +204,38 @@ impl Runtime {
     Ok(())
   }
 
+  #[cfg_attr(not(windows), allow(dead_code))]
+  fn lock_screen(&self) {
+    {
+      let mut inner = self.inner.lock().unwrap();
+      inner.system_locked = true;
+    }
+    // A break showing over the lock screen can't be interacted with, so dismiss it.
+    self.end_break();
+  }
+
+  #[cfg_attr(not(windows), allow(dead_code))]
+  fn unlock_screen(&self) {
+    let now = now_ms();
+    {
+      let mut inner = self.inner.lock().unwrap();
+      inner.system_locked = false;
+      if inner.paused || inner.active_break.is_some() {
+        return;
+      }
+      // Push any overdue breaks forward so the user isn't hit the instant they return.
+      let reminders = inner.settings.reminders.clone();
+      for reminder in reminders.iter().filter(|r| r.enabled) {
+        if inner.scheduled.get(&reminder.id).map(|e| e.next_at <= now).unwrap_or(false) {
+          schedule_locked(&mut inner, reminder);
+        }
+      }
+    }
+    self.wake.notify_all();
+    self.emit_status();
+    self.update_tray();
+  }
+
   fn skip_next(&self) {
     let mut inner = self.inner.lock().unwrap();
     if let Some(id) = inner
@@ -244,15 +274,18 @@ impl Runtime {
   }
 
   fn preview(&self) {
-    let id = self
-      .inner
-      .lock()
-      .unwrap()
-      .settings
-      .reminders
-      .iter()
-      .find(|r| r.enabled)
-      .map(|r| r.id.clone());
+    let id = {
+      let mut inner = self.inner.lock().unwrap();
+      inner.active_break = None;
+      inner.overlay = None;
+      inner
+        .settings
+        .reminders
+        .iter()
+        .find(|r| r.enabled)
+        .map(|r| r.id.clone())
+    };
+    destroy_overlay_windows(&self.app);
     if let Some(id) = id {
       self.start_break(&id, 0);
     }
@@ -264,7 +297,7 @@ impl Runtime {
       let Some(active) = inner.active_break.take() else {
         return;
       };
-      if inner.settings.pause_music_on_break && inner.paused_music {
+      if inner.paused_music {
         inner.paused_music = false;
         resume_system_media();
       }
@@ -299,7 +332,7 @@ impl Runtime {
       let Some(active) = inner.active_break.take() else {
         return;
       };
-      if inner.settings.pause_music_on_break && inner.paused_music {
+      if inner.paused_music {
         inner.paused_music = false;
         resume_system_media();
       }
@@ -331,8 +364,7 @@ impl Runtime {
       session.ready.len() >= session.expected.len()
     };
     if should_play {
-      self.show_overlay_windows();
-      let _ = self.app.emit(BREAK_PLAY, ());
+      self.play_overlay();
     }
   }
 
@@ -381,7 +413,7 @@ impl Runtime {
   }
 
   fn start_break(&self, reminder_id: &str, postpone_count: u32) {
-    let active = {
+    let (active, should_pause_music) = {
       let mut inner = self.inner.lock().unwrap();
       let Some(reminder) = inner
         .settings
@@ -392,33 +424,51 @@ impl Runtime {
       else {
         return;
       };
-      if inner.settings.pause_music_on_break {
-        inner.paused_music = pause_system_media();
-      }
       let now = now_ms();
       let active = ActiveBreak {
         reminder_id: reminder_id.to_string(),
+        ends_at: now + reminder.duration_minutes.max(1) as u64 * 60_000,
         reminder,
         started_at: now,
-        ends_at: now + inner
-          .settings
-          .reminders
-          .iter()
-          .find(|r| r.id == reminder_id)
-          .map(|r| r.duration_minutes as u64)
-          .unwrap_or(1)
-          * 60_000,
         postpone_count,
       };
+      let should_pause_music = inner.settings.pause_music_on_break;
       inner.scheduled.remove(reminder_id);
       inner.active_break = Some(active.clone());
-      active
+      (active, should_pause_music)
     };
     self.create_overlay_windows(active.clone());
     self.emit_status();
     self.update_tray();
 
     let runtime = self.app.state::<Arc<Runtime>>().inner().clone();
+
+    // Pausing media shells out to PowerShell, so do it off the critical path to
+    // avoid delaying the overlay. Only flag paused_music if this break is still active.
+    if should_pause_music {
+      let music_runtime = runtime.clone();
+      let break_started_at = active.started_at;
+      thread::spawn(move || {
+        if pause_system_media() {
+          let mut inner = music_runtime.inner.lock().unwrap();
+          if inner.active_break.as_ref().map(|a| a.started_at == break_started_at).unwrap_or(false) {
+            inner.paused_music = true;
+          } else {
+            // The break already ended before we paused — undo it now.
+            drop(inner);
+            resume_system_media();
+          }
+        }
+      });
+    }
+
+    let preview_guard = runtime.clone();
+    let fallback_started_at = active.started_at;
+    thread::spawn(move || {
+      thread::sleep(Duration::from_millis(1800));
+      preview_guard.play_overlay_if_pending(fallback_started_at);
+    });
+
     thread::spawn(move || {
       let wait = active.ends_at.saturating_sub(now_ms());
       thread::sleep(Duration::from_millis(wait));
@@ -445,11 +495,8 @@ impl Runtime {
       let label = format!("overlay-{i}");
       let pos = monitor.position();
       let size = monitor.size();
-      let window = WebviewWindowBuilder::new(
-        &self.app,
-        &label,
-        WebviewUrl::App("overlay/index.html".into()),
-      )
+      let url = format!("overlay/index.html?label={label}");
+      let window = WebviewWindowBuilder::new(&self.app, &label, WebviewUrl::App(url.into()))
       .title("Take A Moment")
       .decorations(false)
       .transparent(true)
@@ -483,6 +530,30 @@ impl Runtime {
         let _ = window.show();
         let _ = window.set_focus();
       }
+    }
+  }
+
+  fn play_overlay(&self) {
+    {
+      let mut inner = self.inner.lock().unwrap();
+      inner.overlay = None;
+    }
+    self.show_overlay_windows();
+    let _ = self.app.emit(BREAK_PLAY, ());
+  }
+
+  fn play_overlay_if_pending(&self, started_at: u64) {
+    let should_play = {
+      let inner = self.inner.lock().unwrap();
+      inner
+        .active_break
+        .as_ref()
+        .map(|active| active.started_at == started_at)
+        .unwrap_or(false)
+        && inner.overlay.is_some()
+    };
+    if should_play {
+      self.play_overlay();
     }
   }
 
@@ -564,7 +635,8 @@ fn open_settings(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 fn quit(app: AppHandle) {
-  app.exit(0)
+  app.exit(0);
+  std::process::exit(0);
 }
 
 #[tauri::command]
@@ -588,16 +660,6 @@ fn is_first_run(runtime: State<Arc<Runtime>>) -> bool {
 }
 
 #[tauri::command]
-async fn open_sound_file(app: AppHandle) -> Result<Option<String>, String> {
-  let file = app
-    .dialog()
-    .file()
-    .add_filter("Audio", &["mp3", "wav", "ogg", "m4a"])
-    .blocking_pick_file();
-  Ok(file.map(|p| p.to_string()))
-}
-
-#[tauri::command]
 fn overlay_ready(runtime: State<Arc<Runtime>>, label: String) {
   runtime.overlay_ready(label)
 }
@@ -607,7 +669,6 @@ pub fn run() {
     .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
       let _ = show_settings(app);
     }))
-    .plugin(tauri_plugin_dialog::init())
     .setup(|app| {
       app.handle().plugin(tauri_plugin_autostart::init(
         MacosLauncher::LaunchAgent,
@@ -615,6 +676,8 @@ pub fn run() {
       ))?;
       let runtime = Runtime::new(app.handle().clone())?;
       runtime.start_scheduler();
+      #[cfg(windows)]
+      start_session_monitor(runtime.clone());
       app.manage(runtime);
       create_tray(app.handle())?;
       if app.state::<Arc<Runtime>>().is_first_run() {
@@ -636,12 +699,27 @@ pub fn run() {
       quit,
       set_startup,
       get_version,
-      open_sound_file,
       is_first_run,
       overlay_ready
     ])
-    .run(tauri::generate_context!())
-    .expect("error while running Take A Moment");
+    .build(tauri::generate_context!())
+    .expect("error while building Take A Moment")
+    .run(|app, event| match event {
+      tauri::RunEvent::WindowEvent { label, event, .. } => {
+        if label == "settings" {
+          if let WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            if let Some(window) = app.get_webview_window("settings") {
+              let _ = window.hide();
+            }
+          }
+        }
+      }
+      tauri::RunEvent::ExitRequested { api, .. } => {
+        api.prevent_exit();
+      }
+      _ => {}
+    });
 }
 
 fn create_tray(app: &AppHandle) -> tauri::Result<()> {
@@ -652,8 +730,12 @@ fn create_tray(app: &AppHandle) -> tauri::Result<()> {
   let sep = PredefinedMenuItem::separator(app)?;
   let menu = Menu::with_items(app, &[&skip, &pause, &sep, &settings, &sep, &quit])?;
 
+  let icon = tray_icon(app)
+    .or_else(|| app.default_window_icon().cloned())
+    .ok_or_else(|| tauri::Error::AssetNotFound("tray icon".into()))?;
+
   TrayIconBuilder::with_id("main")
-    .icon(app.default_window_icon().unwrap().clone())
+    .icon(icon)
     .tooltip("Take A Moment")
     .menu(&menu)
     .show_menu_on_left_click(false)
@@ -671,7 +753,10 @@ fn create_tray(app: &AppHandle) -> tauri::Result<()> {
         "settings" => {
           let _ = show_settings(app);
         }
-        "quit" => app.exit(0),
+        "quit" => {
+          app.exit(0);
+          std::process::exit(0);
+        }
         _ => {}
       }
     })
@@ -704,6 +789,11 @@ fn show_settings(app: &AppHandle) -> Result<(), String> {
     .build()
     .map_err(|e| e.to_string())?;
   Ok(())
+}
+
+fn tray_icon(app: &AppHandle) -> Option<Image<'static>> {
+  let path = app.path().resource_dir().ok()?.join("icons").join("tray.png");
+  Image::from_path(path).ok()
 }
 
 fn destroy_overlay_windows(app: &AppHandle) {
@@ -791,8 +881,9 @@ fn now_ms() -> u64 {
 
 fn load_settings(app: &AppHandle, path: &PathBuf) -> Result<(AppSettings, bool), String> {
   if path.exists() {
-    let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let parsed: serde_json::Value = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+    let raw = read_text_file(path)?;
+    let parsed: serde_json::Value =
+      serde_json::from_str(raw.trim_start_matches('\u{feff}')).map_err(|e| e.to_string())?;
     let settings: AppSettings = serde_json::from_value(merge_json(default_settings(), parsed))
       .map_err(|e| e.to_string())?;
     return Ok((merge_settings(settings), false));
@@ -814,16 +905,50 @@ fn load_settings(app: &AppHandle, path: &PathBuf) -> Result<(AppSettings, bool),
   Ok((default_settings(), true))
 }
 
+fn legacy_settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+  #[cfg(windows)]
+  {
+    if let Some(appdata) = std::env::var_os("APPDATA") {
+      return Ok(PathBuf::from(appdata).join("take-a-moment").join("settings.json"));
+    }
+  }
+
+  Ok(app
+    .path()
+    .app_data_dir()
+    .map_err(|e| e.to_string())?
+    .join("settings.json"))
+}
+
 fn read_install_language(app: &AppHandle) -> Option<String> {
   let resource_dir = app.path().resource_dir().ok()?;
   let path = resource_dir.join("install-config.json");
-  let raw = fs::read_to_string(&path).ok()?;
+  let raw = read_text_file(&path).ok()?;
   let _ = fs::remove_file(path);
-  serde_json::from_str::<serde_json::Value>(&raw)
+  serde_json::from_str::<serde_json::Value>(raw.trim_start_matches('\u{feff}'))
     .ok()?
     .get("language")?
     .as_str()
     .map(ToOwned::to_owned)
+}
+
+fn read_text_file(path: &PathBuf) -> Result<String, String> {
+  let bytes = fs::read(path).map_err(|e| e.to_string())?;
+  if bytes.starts_with(&[0xff, 0xfe]) {
+    let words = bytes[2..]
+      .chunks_exact(2)
+      .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
+      .collect::<Vec<_>>();
+    return String::from_utf16(&words).map_err(|e| e.to_string());
+  }
+  if bytes.starts_with(&[0xfe, 0xff]) {
+    let words = bytes[2..]
+      .chunks_exact(2)
+      .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]))
+      .collect::<Vec<_>>();
+    return String::from_utf16(&words).map_err(|e| e.to_string());
+  }
+  String::from_utf8(bytes).map_err(|e| e.to_string())
 }
 
 fn merge_json(mut base: AppSettings, patch: serde_json::Value) -> serde_json::Value {
@@ -928,24 +1053,48 @@ fn is_idle(_threshold_minutes: u32) -> bool {
   false
 }
 
+/// Adds CREATE_NO_WINDOW on Windows so shelling out to reg/powershell from the
+/// GUI-subsystem build never flashes a console window. No-op elsewhere.
+fn configure_hidden(cmd: &mut Command) {
+  #[cfg(windows)]
+  {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    cmd.creation_flags(CREATE_NO_WINDOW);
+  }
+  let _ = cmd;
+}
+
+/// True while the camera or microphone is actively in use. Windows writes
+/// LastUsedTimeStop = 0 while a device is held and a FILETIME once released, so
+/// a value of exactly `0x0` under the microphone/webcam consent stores means
+/// "still in use" (covers Teams, Zoom, Meet, etc.).
 fn is_media_in_use() -> bool {
   if !cfg!(windows) {
     return false;
   }
-  let output = Command::new("reg")
-    .args([
-      "query",
-      r"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore",
-      "/s",
-      "/v",
-      "LastUsedTimeStop",
-    ])
-    .output();
-  output
-    .ok()
-    .and_then(|o| String::from_utf8(o.stdout).ok())
-    .map(|s| s.lines().any(|line| line.contains("LastUsedTimeStop") && line.contains("0x0")))
-    .unwrap_or(false)
+  for device in ["microphone", "webcam"] {
+    let key = format!(
+      r"HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\{device}"
+    );
+    let mut cmd = Command::new("reg");
+    cmd.args(["query", &key, "/s", "/v", "LastUsedTimeStop"]);
+    configure_hidden(&mut cmd);
+    let in_use = cmd
+      .output()
+      .ok()
+      .and_then(|o| String::from_utf8(o.stdout).ok())
+      .map(|s| {
+        s.lines().any(|line| {
+          line.contains("LastUsedTimeStop") && line.split_whitespace().last() == Some("0x0")
+        })
+      })
+      .unwrap_or(false);
+    if in_use {
+      return true;
+    }
+  }
+  false
 }
 
 fn pause_system_media() -> bool {
@@ -956,15 +1105,20 @@ fn pause_system_media() -> bool {
 }
 
 fn resume_system_media() {
-  if cfg!(windows) {
-    let _ = run_powershell(RESUME_SCRIPT);
+  if !cfg!(windows) {
+    return;
   }
+  // Called from break-end paths that hold the state lock; never block on it.
+  thread::spawn(|| {
+    let _ = run_powershell(RESUME_SCRIPT);
+  });
 }
 
 fn run_powershell(script: &str) -> std::io::Result<i32> {
-  let status = Command::new("powershell.exe")
-    .args(["-NoProfile", "-NonInteractive", "-Command", script])
-    .status()?;
+  let mut cmd = Command::new("powershell.exe");
+  cmd.args(["-NoProfile", "-NonInteractive", "-Command", script]);
+  configure_hidden(&mut cmd);
+  let status = cmd.status()?;
   Ok(status.code().unwrap_or(1))
 }
 
@@ -989,3 +1143,98 @@ Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern void 
 [TAM.U32]::keybd_event(0xB3, 0, 0, 0)
 [TAM.U32]::keybd_event(0xB3, 0, 2, 0)
 "#;
+
+// ─── Lock-screen guard (Windows session lock/unlock) ─────────────────────────
+// Breaks should not fire over the lock screen (the user can't dismiss them) and
+// overdue breaks must be pushed forward when the user returns. We listen for
+// WM_WTSSESSION_CHANGE on a hidden message-only window.
+
+#[cfg(windows)]
+static SESSION_RUNTIME: Mutex<Option<Arc<Runtime>>> = Mutex::new(None);
+
+#[cfg(windows)]
+unsafe extern "system" fn session_wnd_proc(
+  hwnd: windows::Win32::Foundation::HWND,
+  msg: u32,
+  wparam: windows::Win32::Foundation::WPARAM,
+  lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::LRESULT {
+  use windows::Win32::Foundation::LRESULT;
+  use windows::Win32::UI::WindowsAndMessaging::{DefWindowProcW, WM_WTSSESSION_CHANGE};
+
+  // WTS_SESSION_LOCK / WTS_SESSION_UNLOCK (wtsapi32.h) — not surfaced by the crate.
+  const WTS_SESSION_LOCK: u32 = 0x7;
+  const WTS_SESSION_UNLOCK: u32 = 0x8;
+
+  if msg == WM_WTSSESSION_CHANGE {
+    let event = wparam.0 as u32;
+    if event == WTS_SESSION_LOCK || event == WTS_SESSION_UNLOCK {
+      if let Some(runtime) = SESSION_RUNTIME.lock().unwrap().clone() {
+        if event == WTS_SESSION_LOCK {
+          runtime.lock_screen();
+        } else {
+          runtime.unlock_screen();
+        }
+      }
+    }
+    return LRESULT(0);
+  }
+  DefWindowProcW(hwnd, msg, wparam, lparam)
+}
+
+#[cfg(windows)]
+fn start_session_monitor(runtime: Arc<Runtime>) {
+  *SESSION_RUNTIME.lock().unwrap() = Some(runtime);
+  thread::spawn(|| unsafe {
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::HINSTANCE;
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows::Win32::System::RemoteDesktop::{
+      WTSRegisterSessionNotification, NOTIFY_FOR_THIS_SESSION,
+    };
+    use windows::Win32::UI::WindowsAndMessaging::{
+      CreateWindowExW, DispatchMessageW, GetMessageW, RegisterClassW, TranslateMessage,
+      HWND_MESSAGE, MSG, WINDOW_EX_STYLE, WINDOW_STYLE, WNDCLASSW,
+    };
+
+    let class_name: Vec<u16> = "TamSessionMonitor\0".encode_utf16().collect();
+    let hinstance: HINSTANCE = GetModuleHandleW(PCWSTR::null())
+      .map(|m| HINSTANCE(m.0))
+      .unwrap_or_default();
+
+    let wc = WNDCLASSW {
+      lpfnWndProc: Some(session_wnd_proc),
+      hInstance: hinstance,
+      lpszClassName: PCWSTR(class_name.as_ptr()),
+      ..Default::default()
+    };
+    RegisterClassW(&wc);
+
+    let Ok(hwnd) = CreateWindowExW(
+      WINDOW_EX_STYLE(0),
+      PCWSTR(class_name.as_ptr()),
+      PCWSTR(class_name.as_ptr()),
+      WINDOW_STYLE(0),
+      0,
+      0,
+      0,
+      0,
+      Some(HWND_MESSAGE),
+      None,
+      Some(hinstance),
+      None,
+    ) else {
+      return;
+    };
+
+    if WTSRegisterSessionNotification(hwnd, NOTIFY_FOR_THIS_SESSION).is_err() {
+      return;
+    }
+
+    let mut msg = MSG::default();
+    while GetMessageW(&mut msg, Some(hwnd), 0, 0).0 > 0 {
+      let _ = TranslateMessage(&msg);
+      DispatchMessageW(&msg);
+    }
+  });
+}

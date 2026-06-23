@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence, useReducedMotion, type Variants } from 'framer-motion'
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { ActiveBreak, AppSettings } from '../shared/types'
 import { useStrings, type Language } from '../shared/i18n'
 import { playSound, preloadSound } from '../shared/sounds'
@@ -66,7 +65,7 @@ export function App() {
     setVisible(false)
     startTick(b.endsAt)
 
-    await Promise.all([
+    await Promise.allSettled([
       preloadSound(b.reminder.soundStart),
       preloadSound(b.reminder.soundEnd),
       new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))),
@@ -74,7 +73,8 @@ export function App() {
 
     if (readyForBreakRef.current !== `${b.reminderId}:${b.startedAt}`) {
       readyForBreakRef.current = `${b.reminderId}:${b.startedAt}`
-      await invoke('overlay_ready', { label: getCurrentWebviewWindow().label })
+      const label = new URLSearchParams(window.location.search).get('label') ?? 'overlay-0'
+      await invoke('overlay_ready', { label })
     }
   }, [startTick])
 

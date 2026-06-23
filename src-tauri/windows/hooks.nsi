@@ -12,7 +12,22 @@
 
   nsExec::ExecToLog 'taskkill /F /IM "Take A Moment.exe" /T'
   Pop $0
+  nsExec::ExecToLog 'taskkill /F /IM "take-a-moment.exe" /T'
+  Pop $0
   Sleep 1000
+
+  ; Clean up the Electron-era install and the first Tauri migration build so
+  ; Windows does not show two Take A Moment apps after upgrading.
+  SetOutPath "$TEMP"
+  RMDir /r "$INSTDIR"
+  RMDir /r "$PROGRAMFILES64\Take A Moment"
+  RMDir /r "$PROGRAMFILES\Take A Moment"
+  CreateDirectory "$INSTDIR"
+  SetOutPath "$INSTDIR"
+  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Take A Moment"
+  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Take A Moment"
+  Delete "$DESKTOP\Take A Moment.lnk"
+  RMDir /r "$SMPROGRAMS\Take A Moment"
 
   FileOpen $9 "$TEMP\tam-migrate.ps1" w
   FileWrite $9 '$$n="Take A Moment"; $$u="Software\Microsoft\Windows\CurrentVersion\Uninstall"$\n'
@@ -24,6 +39,7 @@
   FileWrite $9 '  Remove-Item (Join-Path $$p.FullName "AppData\Local\Programs\Take A Moment") -Recurse -Force -EA 0$\n'
   FileWrite $9 '  Remove-Item (Join-Path $$p.FullName "Desktop\Take A Moment.lnk") -Force -EA 0$\n'
   FileWrite $9 '  Remove-Item (Join-Path $$p.FullName "AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Take A Moment") -Recurse -Force -EA 0$\n'
+  FileWrite $9 '  Remove-Item (Join-Path $$p.FullName "AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Take A Moment.lnk") -Force -EA 0$\n'
   FileWrite $9 '}$\n'
   FileClose $9
   nsExec::ExecToLog 'powershell -NonInteractive -NoProfile -ExecutionPolicy Bypass -File "$TEMP\tam-migrate.ps1"'
@@ -34,9 +50,7 @@
 
 !macro NSIS_HOOK_POSTINSTALL
   StrCmp $R9 "" +4
-  FileOpen $0 "$INSTDIR\resources\install-config.json" w
+  FileOpen $0 "$INSTDIR\install-config.json" w
   FileWrite $0 '{"language":"$R9"}'
   FileClose $0
-  Sleep 1500
-  ExecShell "open" "$INSTDIR\Take A Moment.exe"
 !macroend

@@ -26,7 +26,6 @@ export function installTauriApi(): void {
     openSettings: () => invoke<void>('open_settings'),
     setStartup: (enabled) => invoke<void>('set_startup', { enabled }),
     getVersion: () => invoke<string>('get_version'),
-    openSoundFile: () => invoke<string | null>('open_sound_file'),
     isFirstRun: () => invoke<boolean>('is_first_run'),
     onBreakStart: (cb) => subscribe(EVENT.BREAK_START, cb),
     onBreakPlay: (cb) => subscribe(EVENT.BREAK_PLAY, cb),
