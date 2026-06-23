@@ -27,6 +27,7 @@ export class Timer extends EventEmitter {
   private settings: AppSettings
   private scheduled: Map<string, ScheduledReminder> = new Map()
   private paused = false
+  private systemLocked = false
   private activeBreak: ActiveBreak | null = null
   private breakTimeoutId: ReturnType<typeof setTimeout> | null = null
   private tickInterval: ReturnType<typeof setInterval> | null = null
@@ -90,7 +91,7 @@ export class Timer extends EventEmitter {
 
   private onBreakDue(id: string): void {
     const reminder = this.settings.reminders.find(r => r.id === id)
-    if (!reminder || !reminder.enabled || this.paused || this.activeBreak) return
+    if (!reminder || !reminder.enabled || this.paused || this.systemLocked || this.activeBreak) return
 
     const entry = this.scheduled.get(id)
     if (!entry || entry.skipped) {
@@ -204,6 +205,27 @@ export class Timer extends EventEmitter {
     this.paused = false
     if (!this.activeBreak) {
       this.rescheduleAll()
+    }
+    this.emit('status-changed', this.getStatus())
+  }
+
+  lockScreen(): void {
+    this.systemLocked = true
+    // Dismiss any break that is currently showing — user can't interact with it.
+    if (this.activeBreak) this.endBreak()
+  }
+
+  unlockScreen(): void {
+    this.systemLocked = false
+    // Push overdue breaks forward so the user isn't hit immediately on return.
+    const now = Date.now()
+    for (const [id, entry] of this.scheduled.entries()) {
+      if (entry.nextAt <= now) {
+        const reminder = this.settings.reminders.find(r => r.id === id)
+        if (reminder) {
+          this.schedule(id, reminder.label, reminder.frequencyMinutes, reminder.startTime ?? null)
+        }
+      }
     }
     this.emit('status-changed', this.getStatus())
   }

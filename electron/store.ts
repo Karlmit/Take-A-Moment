@@ -12,7 +12,7 @@ export class Store {
   constructor() {
     const userDataPath = app.getPath('userData')
     this.filePath = join(userDataPath, 'settings.json')
-    this.firstRun = !existsSync(this.filePath)
+    this.firstRun = false  // set inside load()
     this.data = this.load()
   }
 
@@ -36,8 +36,14 @@ export class Store {
     if (!existsSync(this.filePath)) {
       const installConfig = this.readInstallConfig()
       if (installConfig?.language) {
-        return getDefaultSettingsForLanguage(installConfig.language)
+        // Installer pre-set the language (e.g. silent /language= flag) —
+        // persist immediately so the in-app language picker is skipped.
+        const s = getDefaultSettingsForLanguage(installConfig.language)
+        writeFileSync(this.filePath, JSON.stringify(s, null, 2), 'utf-8')
+        return s
       }
+      // Genuine first run with no pre-set language — picker will show.
+      this.firstRun = true
       return structuredClone(DEFAULT_SETTINGS)
     }
     try {

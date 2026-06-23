@@ -1,6 +1,6 @@
 {
   "name": "take-a-moment",
-  "version": "0.6.8",
+  "version": "0.7.0",
   "description": "A gentle Windows break-reminder app",
   "main": "out/main/main.js",
   "scripts": {
@@ -58,7 +58,7 @@
     },
     "nsis": {
       "oneClick": false,
-      "perMachine": false,
+      "perMachine": true,
       "allowToChangeInstallationDirectory": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,

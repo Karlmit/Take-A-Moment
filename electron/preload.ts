@@ -19,6 +19,7 @@ const api: Api = {
   setStartup: (enabled: boolean): Promise<void> => ipcRenderer.invoke(IPC.APP_SET_STARTUP, enabled),
   getVersion: (): Promise<string> => ipcRenderer.invoke(IPC.APP_GET_VERSION),
   openSoundFile: (): Promise<string | null> => ipcRenderer.invoke(IPC.APP_OPEN_SOUND_FILE),
+  isFirstRun: (): Promise<boolean> => ipcRenderer.invoke(IPC.APP_IS_FIRST_RUN),
 
   onBreakStart: (cb: (b: ActiveBreak) => void) => {
     const handler = (_: Electron.IpcRendererEvent, b: ActiveBreak) => cb(b)

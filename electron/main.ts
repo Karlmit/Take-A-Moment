@@ -7,6 +7,7 @@ import {
   ipcMain,
   dialog,
   screen,
+  powerMonitor,
 } from 'electron'
 import { join } from 'path'
 import { Store } from './store'
@@ -260,6 +261,8 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC.APP_GET_VERSION, () => app.getVersion())
 
+  ipcMain.handle(IPC.APP_IS_FIRST_RUN, () => store.isFirstRun())
+
   ipcMain.handle(IPC.APP_OPEN_SOUND_FILE, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile'],
@@ -282,6 +285,9 @@ app.whenReady().then(() => {
   screen.on('display-added', ensureOverlayWindows)
   screen.on('display-removed', ensureOverlayWindows)
   screen.on('display-metrics-changed', ensureOverlayWindows)
+
+  powerMonitor.on('lock-screen', () => timer.lockScreen())
+  powerMonitor.on('unlock-screen', () => timer.unlockScreen())
 
   timer.on('break-start', (b: ActiveBreak) => {
     showOverlay(b)

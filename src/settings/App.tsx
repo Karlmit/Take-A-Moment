@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { AppSettings, Reminder, TimerStatus } from '../shared/types'
-import { DEFAULT_SETTINGS } from '../shared/types'
+import { DEFAULT_SETTINGS, getDefaultSettingsForLanguage } from '../shared/types'
+import type { Language } from '../shared/i18n'
 import { useStrings } from '../shared/i18n'
 import { ReminderCard } from './components/ReminderCard'
 import { GeneralSettings } from './components/GeneralSettings'
 import { StatusBar } from './components/StatusBar'
+import { LanguagePicker } from './components/LanguagePicker'
 import styles from './App.module.css'
 
 declare global {
@@ -37,16 +39,25 @@ export function App() {
   const [version, setVersion] = useState('')
   const [saved, setSaved] = useState(false)
   const [activeTab, setActiveTab] = useState<'reminders' | 'general'>('reminders')
+  const [showLanguagePicker, setShowLanguagePicker] = useState(false)
   const t = useStrings(settings.language)
 
   useEffect(() => {
     window.api.getSettings().then(setSettings)
     window.api.getTimerStatus().then(setStatus)
     window.api.getVersion().then(setVersion)
+    window.api.isFirstRun().then(first => { if (first) setShowLanguagePicker(true) })
 
     const off = window.api.onStatusChanged(setStatus)
     return off
   }, [])
+
+  const pickLanguage = async (language: Language) => {
+    const next = getDefaultSettingsForLanguage(language)
+    setSettings(next)
+    await window.api.saveSettings(next)
+    setShowLanguagePicker(false)
+  }
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', settings.theme)
@@ -76,6 +87,7 @@ export function App() {
 
   return (
     <div className={styles.root} data-theme={settings.theme}>
+      {showLanguagePicker && <LanguagePicker onPick={pickLanguage} />}
       <header className={styles.header}>
         <h1 className={styles.appName}>{t.appName}</h1>
         <div className={styles.headerActions}>

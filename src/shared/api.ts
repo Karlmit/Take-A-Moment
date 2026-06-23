@@ -15,6 +15,7 @@ export interface Api {
   setStartup: (enabled: boolean) => Promise<void>
   getVersion: () => Promise<string>
   openSoundFile: () => Promise<string | null>
+  isFirstRun: () => Promise<boolean>
   onBreakStart: (cb: (b: ActiveBreak) => void) => () => void
   onBreakEnd: (cb: () => void) => () => void
   onStatusChanged: (cb: (status: TimerStatus) => void) => () => void
