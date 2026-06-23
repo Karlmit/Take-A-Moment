@@ -1,6 +1,6 @@
 {
   "name": "take-a-moment",
-  "version": "0.8.1",
+  "version": "0.8.3",
   "description": "A gentle Windows break-reminder app",
   "scripts": {
     "predev": "node scripts/gen-assets.cjs",

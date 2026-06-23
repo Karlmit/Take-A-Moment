@@ -24,10 +24,27 @@
   RMDir /r "$PROGRAMFILES\Take A Moment"
   CreateDirectory "$INSTDIR"
   SetOutPath "$INSTDIR"
-  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Take A Moment"
-  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Take A Moment"
   Delete "$DESKTOP\Take A Moment.lnk"
   RMDir /r "$SMPROGRAMS\Take A Moment"
+
+  ; The installer stub is 32-bit; the per-machine uninstall entries (incl.
+  ; Electron-builder's GUID-named key) live in the 64-bit registry view, so
+  ; switch views and remove every "Take A Moment" Uninstall key by DisplayName.
+  ; This hook runs before our own 0.8.x entry is written, so only stale
+  ; installs match.
+  SetRegView 64
+  StrCpy $0 0
+  tam_uninst_loop:
+    EnumRegKey $1 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall" $0
+    StrCmp $1 "" tam_uninst_done
+    ReadRegStr $2 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$1" "DisplayName"
+    StrCmp $2 "Take A Moment" 0 tam_uninst_next
+      DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\$1"
+      Goto tam_uninst_loop ; indices shift after delete; re-enumerate at $0
+    tam_uninst_next:
+    IntOp $0 $0 + 1
+    Goto tam_uninst_loop
+  tam_uninst_done:
 
   FileOpen $9 "$TEMP\tam-migrate.ps1" w
   FileWrite $9 '$$n="Take A Moment"; $$u="Software\Microsoft\Windows\CurrentVersion\Uninstall"$\n'
@@ -42,6 +59,11 @@
   FileWrite $9 '  Remove-Item (Join-Path $$p.FullName "AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Take A Moment.lnk") -Force -EA 0$\n'
   FileWrite $9 '}$\n'
   FileClose $9
+  ; Use the 64-bit PowerShell (Sysnative from this 32-bit stub) so per-user
+  ; HKEY_USERS uninstall lookups hit the 64-bit registry view, not WOW6432Node.
+  nsExec::ExecToLog '"$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe" -NonInteractive -NoProfile -ExecutionPolicy Bypass -File "$TEMP\tam-migrate.ps1"'
+  Pop $0
+  IntCmp $0 0 +3
   nsExec::ExecToLog 'powershell -NonInteractive -NoProfile -ExecutionPolicy Bypass -File "$TEMP\tam-migrate.ps1"'
   Pop $0
   Sleep 2000
