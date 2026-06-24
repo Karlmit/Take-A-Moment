@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { motion, AnimatePresence, useReducedMotion, type Variants } from 'framer-motion'
+import { motion, AnimatePresence, type Variants } from 'framer-motion'
 import { invoke } from '@tauri-apps/api/core'
 import type { ActiveBreak, AppSettings } from '../shared/types'
 import { useStrings, type Language } from '../shared/i18n'
@@ -33,7 +33,6 @@ export function App() {
   const [breakBackground, setBreakBackground] = useState<AppSettings['breakBackground']>('default')
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const readyForBreakRef = useRef<string | null>(null)
-  const prefersReducedMotion = useReducedMotion()
   const t = useStrings(language)
 
   const startTick = useCallback((endsAt: number) => {
@@ -132,31 +131,28 @@ export function App() {
 
   const isDarkBg = breakBackground !== 'default'
 
-  const overlayVariants = (prefersReducedMotion
-    ? {
-        hidden: { opacity: 0 },
-        visible: { opacity: 1, transition: { duration: 0.3 } },
-        exit: { opacity: 0, transition: { duration: 0.3 } },
-      }
-    : {
-        hidden: { clipPath: 'inset(0 0 100% 0)', '--hole-pct': -20 } as Record<string, string | number>,
-        visible: {
-          clipPath: 'inset(0 0 0% 0)',
-          '--hole-pct': -20,
-          transition: { duration: 1.5, ease: [0.4, 0, 0.9, 0.15] },
+  // These gentle wipe/radial animations are the core of the break experience,
+  // so they always play — we deliberately do NOT downgrade them under the OS
+  // "reduce motion" setting (which is off by default on many VMs/servers and
+  // would otherwise drop them to a plain fade).
+  const overlayVariants = {
+    hidden: { clipPath: 'inset(0 0 100% 0)', '--hole-pct': -20 } as Record<string, string | number>,
+    visible: {
+      clipPath: 'inset(0 0 0% 0)',
+      '--hole-pct': -20,
+      transition: { duration: 1.5, ease: [0.4, 0, 0.9, 0.15] },
+    },
+    exit: {
+      '--hole-pct': [-20, -10, 40, 160],
+      transition: {
+        '--hole-pct': {
+          duration: 2.5,
+          times: [0, 0.45, 0.72, 1],
+          ease: 'linear',
         },
-        exit: {
-          '--hole-pct': [-20, -10, 40, 160],
-          transition: {
-            '--hole-pct': {
-              duration: 2.5,
-              times: [0, 0.45, 0.72, 1],
-              ease: 'linear',
-            },
-          },
-        } as Record<string, string | number | object>,
-      }
-  ) as Variants
+      },
+    } as Record<string, string | number | object>,
+  } as Variants
 
   const contentVariants = {
     hidden: { opacity: 0, y: 20 },
