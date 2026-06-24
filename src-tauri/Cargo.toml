@@ -1,6 +1,6 @@
 [package]
 name = "take-a-moment"
-version = "0.8.5"
+version = "0.8.6"
 description = "A gentle Windows break-reminder app"
 authors = ["Take A Moment"]
 edition = "2021"
