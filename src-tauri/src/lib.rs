@@ -1146,125 +1146,116 @@ fn is_media_in_use() -> bool {
   false
 }
 
-// Pause all currently-playing SMTC sessions via PowerShell.
-// Returns the SourceAppUserModelId of each session that was paused so that
-// resume_system_media can target only those apps (not blindly toggle).
-fn pause_system_media() -> Vec<String> {
-  if !cfg!(windows) {
-    return Vec::new();
+// Block synchronously on a WinRT IAsyncOperation<T>.
+// Used from background threads where blocking is acceptable.
+#[cfg(windows)]
+fn wait_for_async<T: windows::core::RuntimeType + 'static>(
+  op: windows_future::IAsyncOperation<T>,
+) -> windows::core::Result<T> {
+  use windows_future::AsyncStatus;
+  loop {
+    if op.Status()? != AsyncStatus::Started {
+      break;
+    }
+    thread::sleep(Duration::from_millis(10));
   }
-  let output = run_powershell_capture(PAUSE_SCRIPT).unwrap_or_default();
-  if output.is_empty() {
-    return Vec::new();
-  }
-  output
-    .split(',')
-    .map(|s| s.trim().to_string())
-    .filter(|s| !s.is_empty())
-    .collect()
+  op.GetResults()
 }
 
-// Resume only the specific sessions that pause_system_media paused.
-// Embeds the IDs directly in the script so no temp file is needed.
+// Pause all currently-playing SMTC sessions using the native WinRT
+// GlobalSystemMediaTransportControlsSessionManager API.
+// Returns the SourceAppUserModelId of each session that was paused so that
+// resume_system_media can target only those apps (not blindly toggle).
+#[cfg(windows)]
+fn pause_system_media() -> Vec<String> {
+  use windows::Media::Control::{
+    GlobalSystemMediaTransportControlsSessionManager,
+    GlobalSystemMediaTransportControlsSessionPlaybackStatus,
+  };
+  let manager = match GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
+    .ok()
+    .and_then(|op| wait_for_async(op).ok())
+  {
+    Some(m) => m,
+    None => return Vec::new(),
+  };
+  let sessions = match manager.GetSessions() {
+    Ok(s) => s,
+    Err(_) => return Vec::new(),
+  };
+  let mut paused = Vec::new();
+  let count = sessions.Size().unwrap_or(0);
+  for i in 0..count {
+    let session = match sessions.GetAt(i) {
+      Ok(s) => s,
+      Err(_) => continue,
+    };
+    let is_playing = session
+      .GetPlaybackInfo()
+      .and_then(|info| info.PlaybackStatus())
+      .map(|s| s == GlobalSystemMediaTransportControlsSessionPlaybackStatus::Playing)
+      .unwrap_or(false);
+    if is_playing {
+      let ok = session
+        .TryPauseAsync()
+        .ok()
+        .and_then(|op| wait_for_async(op).ok())
+        .unwrap_or(false);
+      if ok {
+        if let Ok(id) = session.SourceAppUserModelId() {
+          paused.push(id.to_string());
+        }
+      }
+    }
+  }
+  paused
+}
+
+#[cfg(not(windows))]
+fn pause_system_media() -> Vec<String> {
+  Vec::new()
+}
+
+// Resume only the sessions that pause_system_media paused.
+#[cfg(windows)]
 fn resume_system_media(sessions_to_resume: Vec<String>) {
-  if !cfg!(windows) || sessions_to_resume.is_empty() {
+  if sessions_to_resume.is_empty() {
     return;
   }
-  let ids = sessions_to_resume
-    .iter()
-    .map(|id| format!("'{}'", id.replace('\'', "''")))
-    .collect::<Vec<_>>()
-    .join(",");
-  let script = format!("$ids = @({})\n{}", ids, RESUME_SCRIPT_BODY);
   thread::spawn(move || {
-    let _ = run_powershell(&script);
+    use windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager;
+    let manager = match GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
+      .ok()
+      .and_then(|op| wait_for_async(op).ok())
+    {
+      Some(m) => m,
+      None => return,
+    };
+    let sessions = match manager.GetSessions() {
+      Ok(s) => s,
+      Err(_) => return,
+    };
+    let count = sessions.Size().unwrap_or(0);
+    for i in 0..count {
+      let session = match sessions.GetAt(i) {
+        Ok(s) => s,
+        Err(_) => continue,
+      };
+      let id = match session.SourceAppUserModelId() {
+        Ok(id) => id.to_string(),
+        Err(_) => continue,
+      };
+      if sessions_to_resume.contains(&id) {
+        if let Ok(play_op) = session.TryPlayAsync() {
+          let _ = wait_for_async(play_op);
+        }
+      }
+    }
   });
 }
 
-fn run_powershell(script: &str) -> std::io::Result<i32> {
-  let mut cmd = Command::new("powershell.exe");
-  cmd.args(["-NoProfile", "-NonInteractive", "-Command", script]);
-  configure_hidden(&mut cmd);
-  let status = cmd.status()?;
-  Ok(status.code().unwrap_or(1))
-}
-
-// Runs a PowerShell script and returns its stdout on success (exit 0), or None.
-fn run_powershell_capture(script: &str) -> Option<String> {
-  let mut cmd = Command::new("powershell.exe");
-  cmd.args(["-NoProfile", "-NonInteractive", "-Command", script]);
-  configure_hidden(&mut cmd);
-  let output = cmd.output().ok()?;
-  if output.status.code() == Some(0) {
-    Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
-  } else {
-    None
-  }
-}
-
-// Pauses every currently-playing SMTC session, outputs their AUMIDs comma-separated on stdout.
-//
-// WrtWait polls IAsyncInfo.Status (0=Started, 1=Completed, 2=Canceled, 3=Error) instead of
-// using AsTask reflection. The AsTask approach was unreliable because GetMethods() returns
-// overloads in arbitrary order — the one-parameter filter also matches
-// AsTask<TProgress>(IAsyncActionWithProgress<TProgress>), causing a type-mismatch exception
-// on the first call and silently aborting the script.
-//
-// IVectorView is iterated with Size + GetAt rather than foreach because the WinRT collection
-// type is not reliably treated as IEnumerable by Windows PowerShell.
-const PAUSE_SCRIPT: &str = r#"
-Add-Type -AssemblyName 'System.Runtime.WindowsRuntime'
-[void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media, ContentType=WindowsRuntime]
-function WrtWait($op) {
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    while ([int]$op.Status -eq 0 -and $sw.ElapsedMilliseconds -lt 5000) {
-        [System.Threading.Thread]::Sleep(15)
-    }
-    try { if ([int]$op.Status -eq 1) { return $op.GetResults() } } catch { }
-    return $null
-}
-$mgr = WrtWait([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync())
-if (-not $mgr) { exit 1 }
-$playing = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus]::Playing
-$sessions = $mgr.GetSessions()
-$n = [int]$sessions.Size
-$paused = @()
-for ($i = 0; $i -lt $n; $i++) {
-    $s = $sessions.GetAt([uint32]$i)
-    try {
-        if ($s.GetPlaybackInfo().PlaybackStatus -eq $playing) {
-            if (WrtWait($s.TryPauseAsync())) { $paused += $s.SourceAppUserModelId }
-        }
-    } catch { }
-}
-if ($paused.Count -eq 0) { exit 1 }
-Write-Output ($paused -join ',')
-exit 0
-"#;
-
-// Body of the resume script; Rust prepends "$ids = @('AUMID1','AUMID2',...)" before running.
-const RESUME_SCRIPT_BODY: &str = r#"
-Add-Type -AssemblyName 'System.Runtime.WindowsRuntime'
-[void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media, ContentType=WindowsRuntime]
-function WrtWait($op) {
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    while ([int]$op.Status -eq 0 -and $sw.ElapsedMilliseconds -lt 5000) {
-        [System.Threading.Thread]::Sleep(15)
-    }
-    try { if ([int]$op.Status -eq 1) { return $op.GetResults() } } catch { }
-    return $null
-}
-$mgr = WrtWait([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync())
-if (-not $mgr) { exit 0 }
-$sessions = $mgr.GetSessions()
-$n = [int]$sessions.Size
-for ($i = 0; $i -lt $n; $i++) {
-    $s = $sessions.GetAt([uint32]$i)
-    try {
-        if ($ids -contains $s.SourceAppUserModelId) { WrtWait($s.TryPlayAsync()) | Out-Null }
-    } catch { }
-}
-"#;
+#[cfg(not(windows))]
+fn resume_system_media(_sessions_to_resume: Vec<String>) {}
 
 // ─── Lock-screen guard (Windows session lock/unlock) ─────────────────────────
 // Breaks should not fire over the lock screen (the user can't dismiss them) and
