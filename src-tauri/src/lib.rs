@@ -1204,26 +1204,27 @@ fn run_powershell_capture(script: &str) -> Option<String> {
 
 // Pauses every currently-playing SMTC session, outputs their AUMIDs comma-separated on stdout.
 //
-// Two Await helpers are needed:
-//   Await     – for IAsyncOperation<T> where T is a reference type (e.g. the session manager).
-//               Uses GenericTypeArguments[0] to discover T at runtime.
-//   Await-Bool – for IAsyncOperation<bool>. The WinRT-to-COM wrapper does NOT expose generic
-//               type arguments, so GenericTypeArguments[0] would throw; use [bool] directly.
+// WrtWait polls IAsyncInfo.Status (0=Started, 1=Completed, 2=Canceled, 3=Error) instead of
+// using AsTask reflection. The AsTask approach was unreliable because GetMethods() returns
+// overloads in arbitrary order — the one-parameter filter also matches
+// AsTask<TProgress>(IAsyncActionWithProgress<TProgress>), causing a type-mismatch exception
+// on the first call and silently aborting the script.
 //
 // IVectorView is iterated with Size + GetAt rather than foreach because the WinRT collection
 // type is not reliably treated as IEnumerable by Windows PowerShell.
 const PAUSE_SCRIPT: &str = r#"
 Add-Type -AssemblyName 'System.Runtime.WindowsRuntime'
 [void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media, ContentType=WindowsRuntime]
-$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() |
-    Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 } |
-    Select-Object -First 1)
-function Await($op) {
-    $asTask.MakeGenericMethod($op.GetType().GenericTypeArguments[0]).Invoke($null, @($op)).GetAwaiter().GetResult()
+function WrtWait($op) {
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while ([int]$op.Status -eq 0 -and $sw.ElapsedMilliseconds -lt 5000) {
+        [System.Threading.Thread]::Sleep(15)
+    }
+    try { if ([int]$op.Status -eq 1) { return $op.GetResults() } } catch { }
+    return $null
 }
-$asTaskBool = $asTask.MakeGenericMethod([bool])
-function Await-Bool($op) { $asTaskBool.Invoke($null, @($op)).GetAwaiter().GetResult() }
-$mgr     = Await([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync())
+$mgr = WrtWait([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync())
+if (-not $mgr) { exit 1 }
 $playing = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus]::Playing
 $sessions = $mgr.GetSessions()
 $n = [int]$sessions.Size
@@ -1232,7 +1233,7 @@ for ($i = 0; $i -lt $n; $i++) {
     $s = $sessions.GetAt([uint32]$i)
     try {
         if ($s.GetPlaybackInfo().PlaybackStatus -eq $playing) {
-            if (Await-Bool($s.TryPauseAsync())) { $paused += $s.SourceAppUserModelId }
+            if (WrtWait($s.TryPauseAsync())) { $paused += $s.SourceAppUserModelId }
         }
     } catch { }
 }
@@ -1245,21 +1246,22 @@ exit 0
 const RESUME_SCRIPT_BODY: &str = r#"
 Add-Type -AssemblyName 'System.Runtime.WindowsRuntime'
 [void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media, ContentType=WindowsRuntime]
-$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() |
-    Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 } |
-    Select-Object -First 1)
-function Await($op) {
-    $asTask.MakeGenericMethod($op.GetType().GenericTypeArguments[0]).Invoke($null, @($op)).GetAwaiter().GetResult()
+function WrtWait($op) {
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while ([int]$op.Status -eq 0 -and $sw.ElapsedMilliseconds -lt 5000) {
+        [System.Threading.Thread]::Sleep(15)
+    }
+    try { if ([int]$op.Status -eq 1) { return $op.GetResults() } } catch { }
+    return $null
 }
-$asTaskBool = $asTask.MakeGenericMethod([bool])
-function Await-Bool($op) { $asTaskBool.Invoke($null, @($op)).GetAwaiter().GetResult() }
-$mgr = Await([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync())
+$mgr = WrtWait([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync())
+if (-not $mgr) { exit 0 }
 $sessions = $mgr.GetSessions()
 $n = [int]$sessions.Size
 for ($i = 0; $i -lt $n; $i++) {
     $s = $sessions.GetAt([uint32]$i)
     try {
-        if ($ids -contains $s.SourceAppUserModelId) { Await-Bool($s.TryPlayAsync()) | Out-Null }
+        if ($ids -contains $s.SourceAppUserModelId) { WrtWait($s.TryPlayAsync()) | Out-Null }
     } catch { }
 }
 "#;
