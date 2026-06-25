@@ -22,6 +22,9 @@ function formatTime(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
+const OVERLAY_LABEL = new URLSearchParams(window.location.search).get('label') ?? 'overlay-0'
+const IS_AUDIO_OWNER = OVERLAY_LABEL === 'overlay-0'
+
 export function App() {
   const [breakData, setBreakData] = useState<ActiveBreak | null>(null)
   const [armed, setArmed] = useState(false)
@@ -72,8 +75,7 @@ export function App() {
 
     if (readyForBreakRef.current !== `${b.reminderId}:${b.startedAt}`) {
       readyForBreakRef.current = `${b.reminderId}:${b.startedAt}`
-      const label = new URLSearchParams(window.location.search).get('label') ?? 'overlay-0'
-      await invoke('overlay_ready', { label })
+      await invoke('overlay_ready', { label: OVERLAY_LABEL })
     }
   }, [startTick])
 
@@ -92,11 +94,11 @@ export function App() {
     const offPlay = window.api.onBreakPlay(() => {
       setVisible(true)
       const b = breakDataRef.current
-      if (b) playSound(b.reminder.soundStart, b.reminder.volume)
+      if (IS_AUDIO_OWNER && b) playSound(b.reminder.soundStart, b.reminder.volume)
     })
 
     const offEnd = window.api.onBreakEnd(() => {
-      if (breakDataRef.current) playSound(breakDataRef.current.reminder.soundEnd, breakDataRef.current.reminder.volume)
+      if (IS_AUDIO_OWNER && breakDataRef.current) playSound(breakDataRef.current.reminder.soundEnd, breakDataRef.current.reminder.volume)
       // Unmount the overlay so AnimatePresence plays the radial "exit" variant.
       // Do NOT setVisible(false) first — that collapses the overlay with the
       // clip-path wipe and pre-empts the radial circle exit animation.
