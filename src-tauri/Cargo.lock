@@ -3251,7 +3251,7 @@ dependencies = [
 
 [[package]]
 name = "take-a-moment"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "chrono",
  "serde",
