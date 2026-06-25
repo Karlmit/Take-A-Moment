@@ -95,6 +95,18 @@ function playSoft(v: number): void {
 
 async function playFile(filename: string, v: number): Promise<void> {
   const ac = getCtx()
+  const buffer = await loadFileBuffer(filename)
+  const source = ac.createBufferSource()
+  const gain = ac.createGain()
+  source.buffer = buffer
+  gain.gain.value = v
+  source.connect(gain)
+  gain.connect(ac.destination)
+  source.start()
+}
+
+async function loadFileBuffer(filename: string): Promise<AudioBuffer> {
+  const ac = getCtx()
   let buffer = bufferCache.get(filename)
   if (!buffer) {
     const url = new URL(`../sounds/${filename}`, location.href).href
@@ -103,13 +115,13 @@ async function playFile(filename: string, v: number): Promise<void> {
     buffer = await ac.decodeAudioData(arrayBuffer)
     bufferCache.set(filename, buffer)
   }
-  const source = ac.createBufferSource()
-  const gain = ac.createGain()
-  source.buffer = buffer
-  gain.gain.value = v
-  source.connect(gain)
-  gain.connect(ac.destination)
-  source.start()
+  return buffer
+}
+
+export async function preloadSound(type: SoundType): Promise<void> {
+  const file = FILE_SOUNDS[type]
+  if (file) await loadFileBuffer(file)
+  else if (type !== 'none') getCtx()
 }
 
 export async function playSound(type: SoundType, volume = 80): Promise<void> {

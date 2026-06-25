@@ -11,9 +11,10 @@
     "noEmit": false,
     "outDir": "dist/main",
     "types": ["node"],
+    "baseUrl": ".",
     "paths": {
       "@shared/*": ["src/shared/*"]
     }
   },
-  "include": ["electron/**/*", "electron.vite.config.*", "scripts/**/*"]
+  "include": ["vite.config.*", "scripts/**/*"]
 }

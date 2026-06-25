@@ -16,6 +16,7 @@
 - Themes: Still Garden · Soft Dusk · Morning Mist
 - Languages: English · Svenska · Deutsch · Français · Español · Nederlands · Dansk
 - No admin required — installs to your user folder
+- Native tray/timer host — web UI only starts while Settings or a break overlay is open
 
 ## Installation
 
@@ -72,3 +73,6 @@ Build installer:
 npm run package
 # Output: release/Take A Moment Setup x.x.x.exe
 ```
+
+The app uses Tauri v2. The idle tray process is native Rust; Settings and the
+fullscreen break overlay are Vite/React webviews created on demand.

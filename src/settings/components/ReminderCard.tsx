@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { Reminder } from '../../shared/types'
 import type { useStrings } from '../../shared/i18n'
@@ -97,12 +97,18 @@ export function ReminderCard({ reminder, t, timeFormat, onChange, onDelete, next
   const [draft, setDraft] = useState<Reminder>(reminder)
   const [startTimeLocked, setStartTimeLocked] = useState(reminder.startTime !== null)
 
-  const handleToggleExpand = () => {
-    if (expanded) {
-      // Reset draft if not saved
+  // Settings load asynchronously (and change when saved), so keep the draft in
+  // sync with the latest reminder whenever the card isn't open for editing.
+  // Without this the draft stays frozen on the initial default values, showing
+  // stale fields (e.g. "Every 60 min") and overwriting real settings on save.
+  useEffect(() => {
+    if (!expanded) {
       setDraft(reminder)
       setStartTimeLocked(reminder.startTime !== null)
     }
+  }, [reminder, expanded])
+
+  const handleToggleExpand = () => {
     setExpanded(v => !v)
   }
 

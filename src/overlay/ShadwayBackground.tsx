@@ -30,7 +30,6 @@ export function ShadwayBackground({ theme }: { theme: string }) {
         grainOverlay={0}
         speed={0.12}
         offsetX={0.08}
-        backgroundColor="#f0f0f0"
       />
     </div>
   )

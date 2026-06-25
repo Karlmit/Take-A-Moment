@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Take A Moment",
+  "version": "0.8.6",
+  "identifier": "app.take-a-moment",
+  "build": {
+    "beforeDevCommand": "npm run build",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist",
+    "devUrl": null
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "security": {
+      "csp": null
+    },
+    "windows": []
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "Take A Moment",
+    "icon": ["icons/icon.ico", "icons/icon.png"],
+    "resources": {
+      "../assets/icons": "icons"
+    },
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "installMode": "perMachine",
+        "languages": ["Swedish"],
+        "displayLanguageSelector": false,
+        "installerHooks": "windows/hooks.nsi"
+      }
+    }
+  }
+}

@@ -22,6 +22,14 @@ export function NumberInput({ value, min, max, onChange, className }: {
     }
   }
 
+  const updateRaw = (next: string) => {
+    setRaw(next)
+    const n = parseInt(next, 10)
+    if (!isNaN(n)) {
+      onChange(Math.min(Math.max(n, min ?? 1), max ?? Infinity))
+    }
+  }
+
   return (
     <input
       type="number"
@@ -29,7 +37,7 @@ export function NumberInput({ value, min, max, onChange, className }: {
       min={min}
       max={max}
       value={raw}
-      onChange={e => setRaw(e.target.value)}
+      onChange={e => updateRaw(e.target.value)}
       onBlur={commit}
       onKeyDown={e => e.key === 'Enter' && commit()}
     />
