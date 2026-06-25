@@ -12,7 +12,6 @@ export interface Api {
   saveSettings: (settings: AppSettings) => Promise<void>
   quit: () => Promise<void>
   openSettings: () => Promise<void>
-  setStartup: (enabled: boolean) => Promise<void>
   getVersion: () => Promise<string>
   isFirstRun: () => Promise<boolean>
   onBreakStart: (cb: (b: ActiveBreak) => void) => () => void

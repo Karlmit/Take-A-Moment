@@ -1,12 +1,12 @@
 {
   "name": "take-a-moment",
-  "version": "0.8.6",
+  "version": "0.8.7",
   "description": "A gentle Windows break-reminder app",
   "scripts": {
     "predev": "node scripts/gen-assets.cjs",
     "dev": "tauri dev",
     "build": "node scripts/gen-assets.cjs && vite build",
-    "package": "node scripts/gen-assets.cjs && tauri build --bundles nsis"
+    "package": "node scripts/gen-assets.cjs && tauri build --bundles nsis --target x86_64-pc-windows-gnu && node scripts/post-package.cjs"
   },
   "dependencies": {
     "@paper-design/shaders-react": "^0.0.76",

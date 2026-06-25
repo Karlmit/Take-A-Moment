@@ -113,10 +113,7 @@ export function GeneralSettings({ settings, t, version, onChange }: Props) {
             label={t.launchOnStartup}
             description={t.startupDescription}
             checked={settings.launchOnStartup}
-            onChange={v => {
-              update({ launchOnStartup: v })
-              window.api.setStartup(v)
-            }}
+            onChange={v => update({ launchOnStartup: v })}
           />
 
           <ToggleRow

@@ -192,6 +192,14 @@ impl Runtime {
     )
     .map_err(|e| e.to_string())?;
 
+    // Sync the OS autostart entry with the saved setting so the two never drift apart.
+    let autostart = self.app.autolaunch();
+    if settings.launch_on_startup {
+      autostart.enable().map_err(|e| e.to_string())?;
+    } else {
+      autostart.disable().map_err(|e| e.to_string())?;
+    }
+
     {
       let mut inner = self.inner.lock().unwrap();
       inner.settings = merge_settings(settings);
@@ -645,16 +653,6 @@ fn quit(app: AppHandle) {
 }
 
 #[tauri::command]
-fn set_startup(app: AppHandle, enabled: bool) -> Result<(), String> {
-  let autostart = app.autolaunch();
-  if enabled {
-    autostart.enable().map_err(|e| e.to_string())
-  } else {
-    autostart.disable().map_err(|e| e.to_string())
-  }
-}
-
-#[tauri::command]
 fn get_version(app: AppHandle) -> String {
   app.package_info().version.to_string()
 }
@@ -702,7 +700,6 @@ pub fn run() {
       preview_break,
       open_settings,
       quit,
-      set_startup,
       get_version,
       is_first_run,
       overlay_ready
