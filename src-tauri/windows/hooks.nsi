@@ -75,10 +75,6 @@
   FileOpen $0 "$INSTDIR\install-config.json" w
   FileWrite $0 '{"language":"$R9"}'
   FileClose $0
-  ; Launch via explorer.exe so it runs under the interactive user's token with
-  ; Explorer as the parent process — the same chain as any normal app launch.
-  ; Direct ExecShell from the SYSTEM installer makes SYSTEM the parent, which
-  ; triggers Defender's Behavior:Win32/Persistence.A!ml heuristic.
   Sleep 1500
-  Exec '"$WINDIR\explorer.exe" "$INSTDIR\take-a-moment.exe"'
+  nsis_tauri_utils::RunAsUser "$INSTDIR\take-a-moment.exe" ""
 !macroend
