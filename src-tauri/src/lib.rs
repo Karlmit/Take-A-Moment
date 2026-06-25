@@ -54,6 +54,8 @@ struct AppSettings {
   cover_all_displays: bool,
   time_format: String,
   break_background: String,
+  #[serde(default)]
+  paused: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -118,13 +120,14 @@ impl Runtime {
   fn new(app: AppHandle) -> Result<Arc<Self>, String> {
     let settings_path = legacy_settings_path(&app)?;
     let (settings, first_run) = load_settings(&app, &settings_path)?;
+    let initially_paused = settings.paused;
     let runtime = Arc::new(Self {
       app,
       settings_path,
       inner: Mutex::new(Inner {
         settings,
         first_run,
-        paused: false,
+        paused: initially_paused,
         system_locked: false,
         active_break: None,
         scheduled: HashMap::new(),
@@ -182,15 +185,12 @@ impl Runtime {
     self.inner.lock().unwrap().first_run
   }
 
-  fn save_settings(&self, settings: AppSettings) -> Result<(), String> {
-    if let Some(parent) = self.settings_path.parent() {
-      fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(
-      &self.settings_path,
-      serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?,
-    )
-    .map_err(|e| e.to_string())?;
+  fn save_settings(&self, mut settings: AppSettings) -> Result<(), String> {
+    // The frontend doesn't track the pause state; inject the authoritative
+    // in-memory value so a reminder-card save never accidentally clears it.
+    settings.paused = self.inner.lock().unwrap().paused;
+
+    self.write_settings_file(&settings)?;
 
     // Sync the OS autostart entry with the saved setting so the two never drift apart.
     let autostart = self.app.autolaunch();
@@ -210,6 +210,17 @@ impl Runtime {
     self.emit_status();
     self.wake.notify_all();
     Ok(())
+  }
+
+  fn write_settings_file(&self, settings: &AppSettings) -> Result<(), String> {
+    if let Some(parent) = self.settings_path.parent() {
+      fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(
+      &self.settings_path,
+      serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())
   }
 
   #[cfg_attr(not(windows), allow(dead_code))]
@@ -262,20 +273,29 @@ impl Runtime {
   }
 
   fn pause(&self) {
-    self.inner.lock().unwrap().paused = true;
+    let settings = {
+      let mut inner = self.inner.lock().unwrap();
+      inner.paused = true;
+      inner.settings.paused = true;
+      inner.settings.clone()
+    };
+    let _ = self.write_settings_file(&settings);
     self.wake.notify_all();
     self.emit_status();
     self.update_tray();
   }
 
   fn resume(&self) {
-    {
+    let settings = {
       let mut inner = self.inner.lock().unwrap();
       inner.paused = false;
+      inner.settings.paused = false;
       if inner.active_break.is_none() {
         reschedule_all_locked(&mut inner);
       }
-    }
+      inner.settings.clone()
+    };
+    let _ = self.write_settings_file(&settings);
     self.wake.notify_all();
     self.emit_status();
     self.update_tray();
@@ -1028,6 +1048,7 @@ fn default_settings() -> AppSettings {
     cover_all_displays: true,
     time_format: "24h".into(),
     break_background: "default".into(),
+    paused: false,
   }
 }
 
@@ -1157,6 +1178,15 @@ fn run_powershell_capture(script: &str) -> Option<String> {
 }
 
 // Pauses every currently-playing SMTC session, outputs their AUMIDs comma-separated on stdout.
+//
+// Two Await helpers are needed:
+//   Await     – for IAsyncOperation<T> where T is a reference type (e.g. the session manager).
+//               Uses GenericTypeArguments[0] to discover T at runtime.
+//   Await-Bool – for IAsyncOperation<bool>. The WinRT-to-COM wrapper does NOT expose generic
+//               type arguments, so GenericTypeArguments[0] would throw; use [bool] directly.
+//
+// IVectorView is iterated with Size + GetAt rather than foreach because the WinRT collection
+// type is not reliably treated as IEnumerable by Windows PowerShell.
 const PAUSE_SCRIPT: &str = r#"
 Add-Type -AssemblyName 'System.Runtime.WindowsRuntime'
 [void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media, ContentType=WindowsRuntime]
@@ -1166,20 +1196,27 @@ $asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() |
 function Await($op) {
     $asTask.MakeGenericMethod($op.GetType().GenericTypeArguments[0]).Invoke($null, @($op)).GetAwaiter().GetResult()
 }
-$mgr   = Await([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync())
+$asTaskBool = $asTask.MakeGenericMethod([bool])
+function Await-Bool($op) { $asTaskBool.Invoke($null, @($op)).GetAwaiter().GetResult() }
+$mgr     = Await([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync())
 $playing = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus]::Playing
+$sessions = $mgr.GetSessions()
+$n = [int]$sessions.Size
 $paused = @()
-foreach ($s in $mgr.GetSessions()) {
-    if ($s.GetPlaybackInfo().PlaybackStatus -eq $playing) {
-        if (Await($s.TryPauseAsync())) { $paused += $s.SourceAppUserModelId }
-    }
+for ($i = 0; $i -lt $n; $i++) {
+    $s = $sessions.GetAt([uint32]$i)
+    try {
+        if ($s.GetPlaybackInfo().PlaybackStatus -eq $playing) {
+            if (Await-Bool($s.TryPauseAsync())) { $paused += $s.SourceAppUserModelId }
+        }
+    } catch { }
 }
 if ($paused.Count -eq 0) { exit 1 }
 Write-Output ($paused -join ',')
 exit 0
 "#;
 
-// Body of the resume script; prepend "$ids = @(...)" with the actual AUMIDs before running.
+// Body of the resume script; Rust prepends "$ids = @('AUMID1','AUMID2',...)" before running.
 const RESUME_SCRIPT_BODY: &str = r#"
 Add-Type -AssemblyName 'System.Runtime.WindowsRuntime'
 [void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media, ContentType=WindowsRuntime]
@@ -1189,9 +1226,16 @@ $asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() |
 function Await($op) {
     $asTask.MakeGenericMethod($op.GetType().GenericTypeArguments[0]).Invoke($null, @($op)).GetAwaiter().GetResult()
 }
+$asTaskBool = $asTask.MakeGenericMethod([bool])
+function Await-Bool($op) { $asTaskBool.Invoke($null, @($op)).GetAwaiter().GetResult() }
 $mgr = Await([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync())
-foreach ($s in $mgr.GetSessions()) {
-    if ($ids -contains $s.SourceAppUserModelId) { Await($s.TryPlayAsync()) | Out-Null }
+$sessions = $mgr.GetSessions()
+$n = [int]$sessions.Size
+for ($i = 0; $i -lt $n; $i++) {
+    $s = $sessions.GetAt([uint32]$i)
+    try {
+        if ($ids -contains $s.SourceAppUserModelId) { Await-Bool($s.TryPlayAsync()) | Out-Null }
+    } catch { }
 }
 "#;
 
