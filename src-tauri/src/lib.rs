@@ -104,7 +104,7 @@ struct Inner {
   active_break: Option<ActiveBreak>,
   scheduled: HashMap<String, ScheduledReminder>,
   overlay: Option<OverlaySession>,
-  paused_music: bool,
+  paused_sessions: Vec<String>,
 }
 
 struct Runtime {
@@ -129,7 +129,7 @@ impl Runtime {
         active_break: None,
         scheduled: HashMap::new(),
         overlay: None,
-        paused_music: false,
+        paused_sessions: Vec::new(),
       }),
       wake: Condvar::new(),
     });
@@ -305,9 +305,9 @@ impl Runtime {
       let Some(active) = inner.active_break.take() else {
         return;
       };
-      if inner.paused_music {
-        inner.paused_music = false;
-        resume_system_media();
+      let sessions = std::mem::take(&mut inner.paused_sessions);
+      if !sessions.is_empty() {
+        resume_system_media(sessions);
       }
       let reminder = inner
         .settings
@@ -340,9 +340,9 @@ impl Runtime {
       let Some(active) = inner.active_break.take() else {
         return;
       };
-      if inner.paused_music {
-        inner.paused_music = false;
-        resume_system_media();
+      let sessions = std::mem::take(&mut inner.paused_sessions);
+      if !sessions.is_empty() {
+        resume_system_media(sessions);
       }
       active
     };
@@ -451,20 +451,21 @@ impl Runtime {
 
     let runtime = self.app.state::<Arc<Runtime>>().inner().clone();
 
-    // Pausing media shells out to PowerShell, so do it off the critical path to
-    // avoid delaying the overlay. Only flag paused_music if this break is still active.
+    // Pause media off the critical path so it doesn't delay the overlay.
+    // Only store the paused sessions if the break is still active when we finish.
     if should_pause_music {
       let music_runtime = runtime.clone();
       let break_started_at = active.started_at;
       thread::spawn(move || {
-        if pause_system_media() {
+        let paused = pause_system_media();
+        if !paused.is_empty() {
           let mut inner = music_runtime.inner.lock().unwrap();
           if inner.active_break.as_ref().map(|a| a.started_at == break_started_at).unwrap_or(false) {
-            inner.paused_music = true;
+            inner.paused_sessions = paused;
           } else {
-            // The break already ended before we paused — undo it now.
+            // Break ended before we finished pausing — undo it immediately.
             drop(inner);
-            resume_system_media();
+            resume_system_media(paused);
           }
         }
       });
@@ -1099,20 +1100,38 @@ fn is_media_in_use() -> bool {
   false
 }
 
-fn pause_system_media() -> bool {
+// Pause all currently-playing SMTC sessions via PowerShell.
+// Returns the SourceAppUserModelId of each session that was paused so that
+// resume_system_media can target only those apps (not blindly toggle).
+fn pause_system_media() -> Vec<String> {
   if !cfg!(windows) {
-    return false;
+    return Vec::new();
   }
-  run_powershell(PAUSE_SCRIPT).map(|code| code == 0).unwrap_or(false)
+  let output = run_powershell_capture(PAUSE_SCRIPT).unwrap_or_default();
+  if output.is_empty() {
+    return Vec::new();
+  }
+  output
+    .split(',')
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty())
+    .collect()
 }
 
-fn resume_system_media() {
-  if !cfg!(windows) {
+// Resume only the specific sessions that pause_system_media paused.
+// Embeds the IDs directly in the script so no temp file is needed.
+fn resume_system_media(sessions_to_resume: Vec<String>) {
+  if !cfg!(windows) || sessions_to_resume.is_empty() {
     return;
   }
-  // Called from break-end paths that hold the state lock; never block on it.
-  thread::spawn(|| {
-    let _ = run_powershell(RESUME_SCRIPT);
+  let ids = sessions_to_resume
+    .iter()
+    .map(|id| format!("'{}'", id.replace('\'', "''")))
+    .collect::<Vec<_>>()
+    .join(",");
+  let script = format!("$ids = @({})\n{}", ids, RESUME_SCRIPT_BODY);
+  thread::spawn(move || {
+    let _ = run_powershell(&script);
   });
 }
 
@@ -1124,26 +1143,56 @@ fn run_powershell(script: &str) -> std::io::Result<i32> {
   Ok(status.code().unwrap_or(1))
 }
 
+// Runs a PowerShell script and returns its stdout on success (exit 0), or None.
+fn run_powershell_capture(script: &str) -> Option<String> {
+  let mut cmd = Command::new("powershell.exe");
+  cmd.args(["-NoProfile", "-NonInteractive", "-Command", script]);
+  configure_hidden(&mut cmd);
+  let output = cmd.output().ok()?;
+  if output.status.code() == Some(0) {
+    Some(String::from_utf8_lossy(&output.stdout).trim().to_string())
+  } else {
+    None
+  }
+}
+
+// Pauses every currently-playing SMTC session, outputs their AUMIDs comma-separated on stdout.
 const PAUSE_SCRIPT: &str = r#"
 Add-Type -AssemblyName 'System.Runtime.WindowsRuntime'
 [void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media, ContentType=WindowsRuntime]
-$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 })[0]
-$mgrTask = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()
-$mgr = $asTask.MakeGenericMethod($mgrTask.GetType().GenericTypeArguments[0]).Invoke($null, @($mgrTask)).GetAwaiter().GetResult()
-$session = $mgr.GetCurrentSession()
-if ($null -eq $session) { exit 1 }
-$status = $session.GetPlaybackInfo().PlaybackStatus
-if ($status -ne [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus]::Playing) { exit 1 }
-Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, int extra);' -Name U32 -Namespace TAM
-[TAM.U32]::keybd_event(0xB3, 0, 0, 0)
-[TAM.U32]::keybd_event(0xB3, 0, 2, 0)
+$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() |
+    Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 } |
+    Select-Object -First 1)
+function Await($op) {
+    $asTask.MakeGenericMethod($op.GetType().GenericTypeArguments[0]).Invoke($null, @($op)).GetAwaiter().GetResult()
+}
+$mgr   = Await([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync())
+$playing = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionPlaybackStatus]::Playing
+$paused = @()
+foreach ($s in $mgr.GetSessions()) {
+    if ($s.GetPlaybackInfo().PlaybackStatus -eq $playing) {
+        if (Await($s.TryPauseAsync())) { $paused += $s.SourceAppUserModelId }
+    }
+}
+if ($paused.Count -eq 0) { exit 1 }
+Write-Output ($paused -join ',')
 exit 0
 "#;
 
-const RESUME_SCRIPT: &str = r#"
-Add-Type -MemberDefinition '[DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, int extra);' -Name U32 -Namespace TAM
-[TAM.U32]::keybd_event(0xB3, 0, 0, 0)
-[TAM.U32]::keybd_event(0xB3, 0, 2, 0)
+// Body of the resume script; prepend "$ids = @(...)" with the actual AUMIDs before running.
+const RESUME_SCRIPT_BODY: &str = r#"
+Add-Type -AssemblyName 'System.Runtime.WindowsRuntime'
+[void][Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media, ContentType=WindowsRuntime]
+$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() |
+    Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 } |
+    Select-Object -First 1)
+function Await($op) {
+    $asTask.MakeGenericMethod($op.GetType().GenericTypeArguments[0]).Invoke($null, @($op)).GetAwaiter().GetResult()
+}
+$mgr = Await([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync())
+foreach ($s in $mgr.GetSessions()) {
+    if ($ids -contains $s.SourceAppUserModelId) { Await($s.TryPlayAsync()) | Out-Null }
+}
 "#;
 
 // ─── Lock-screen guard (Windows session lock/unlock) ─────────────────────────
