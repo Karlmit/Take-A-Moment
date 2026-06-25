@@ -91,6 +91,7 @@ struct ScheduledReminder {
   label: String,
   next_at: u64,
   skipped: bool,
+  postpone_count: u32,
 }
 
 struct OverlaySession {
@@ -375,6 +376,7 @@ impl Runtime {
           label: active.reminder.label.clone(),
           next_at: now_ms() + delay_ms,
           skipped: false,
+          postpone_count: active.postpone_count + 1,
         },
       );
       active
@@ -411,7 +413,7 @@ impl Runtime {
   }
 
   fn on_break_due(&self, id: &str) {
-    let action = {
+    let action: Option<Option<(String, u32)>> = {
       let mut inner = self.inner.lock().unwrap();
       let Some(reminder) = inner.settings.reminders.iter().find(|r| r.id == id).cloned() else {
         inner.scheduled.remove(id);
@@ -420,8 +422,26 @@ impl Runtime {
       if !reminder.enabled || inner.paused || inner.active_break.is_some() {
         return;
       }
-      if inner.scheduled.get(id).map(|e| e.skipped).unwrap_or(false) {
+      let entry_skipped = inner.scheduled.get(id).map(|e| e.skipped).unwrap_or(false);
+      let postpone_count = inner.scheduled.get(id).map(|e| e.postpone_count).unwrap_or(0);
+      if entry_skipped {
         schedule_locked(&mut inner, &reminder);
+        Some(None)
+      } else if postpone_count > 0 && is_media_in_use() {
+        // The user pressed Postpone while in a call and is still in one.
+        // Re-postpone for another postpone_minutes instead of firing or
+        // dropping back to the full frequency cycle.
+        let delay_ms = inner.settings.postpone_minutes.max(1) as u64 * 60_000;
+        inner.scheduled.insert(
+          id.to_string(),
+          ScheduledReminder {
+            reminder_id: id.to_string(),
+            label: reminder.label.clone(),
+            next_at: now_ms() + delay_ms,
+            skipped: false,
+            postpone_count,
+          },
+        );
         Some(None)
       } else if reminder.skip_on_idle && is_idle(inner.settings.idle_threshold_minutes) {
         schedule_locked(&mut inner, &reminder);
@@ -430,11 +450,11 @@ impl Runtime {
         schedule_locked(&mut inner, &reminder);
         Some(None)
       } else {
-        Some(Some(reminder.id.clone()))
+        Some(Some((reminder.id.clone(), postpone_count)))
       }
     };
     match action {
-      Some(Some(reminder_id)) => self.start_break(&reminder_id, 0),
+      Some(Some((reminder_id, postpone_count))) => self.start_break(&reminder_id, postpone_count),
       Some(None) => {
         self.emit_status();
         self.update_tray();
@@ -878,6 +898,7 @@ fn schedule_locked(inner: &mut Inner, reminder: &Reminder) {
       label: reminder.label.clone(),
       next_at,
       skipped: false,
+      postpone_count: 0,
     },
   );
 }
