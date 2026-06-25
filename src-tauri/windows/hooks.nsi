@@ -75,11 +75,10 @@
   FileOpen $0 "$INSTDIR\install-config.json" w
   FileWrite $0 '{"language":"$R9"}'
   FileClose $0
-  ; Auto-launch after install, including silent org-pushed upgrades, so the app
-  ; resumes running in the background without a manual start or a reboot.
-  ; ExecShell "open" is non-blocking (ShellExecute) — it does NOT tie the
-  ; installer's lifetime to the app, which is what hung earlier waiting execs.
-  ; The Sleep lets file handles from the instance killed in PREINSTALL clear.
+  ; Launch via explorer.exe so it runs under the interactive user's token with
+  ; Explorer as the parent process — the same chain as any normal app launch.
+  ; Direct ExecShell from the SYSTEM installer makes SYSTEM the parent, which
+  ; triggers Defender's Behavior:Win32/Persistence.A!ml heuristic.
   Sleep 1500
-  ExecShell "open" "$INSTDIR\take-a-moment.exe"
+  Exec '"$WINDIR\explorer.exe" "$INSTDIR\take-a-moment.exe"'
 !macroend
