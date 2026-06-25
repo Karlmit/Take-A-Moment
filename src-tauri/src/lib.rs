@@ -194,11 +194,13 @@ impl Runtime {
     self.write_settings_file(&settings)?;
 
     // Sync the OS autostart entry with the saved setting so the two never drift apart.
+    // disable() returns ERROR_FILE_NOT_FOUND on a fresh install with no existing entry —
+    // that is harmless, so we ignore the error rather than surfacing it to the UI.
     let autostart = self.app.autolaunch();
     if settings.launch_on_startup {
       autostart.enable().map_err(|e| e.to_string())?;
     } else {
-      autostart.disable().map_err(|e| e.to_string())?;
+      let _ = autostart.disable();
     }
 
     {
@@ -210,6 +212,7 @@ impl Runtime {
     self.emit_settings();
     self.emit_status();
     self.wake.notify_all();
+    self.update_tray();
     Ok(())
   }
 
@@ -624,15 +627,20 @@ impl Runtime {
     let Some(tray) = self.app.tray_by_id("main") else {
       return;
     };
+    let settings = self.settings();
     let status = self.status();
+    let s = tray_strings(&settings.language);
     let tooltip = if status.paused {
-      "Take A Moment - paused".to_string()
-    } else if let Some(next) = status.next_break {
-      format!("Next: {}", next.label)
+      format!("Take A Moment — {}", s.paused_label)
+    } else if let Some(next) = &status.next_break {
+      format!("{}: {}", s.next_label, next.label)
     } else {
       "Take A Moment".to_string()
     };
     let _ = tray.set_tooltip(Some(&tooltip));
+    if let Ok(menu) = build_tray_menu(&self.app, &settings.language, status.paused) {
+      let _ = tray.set_menu(Some(menu));
+    }
   }
 }
 
@@ -728,6 +736,7 @@ pub fn run() {
       start_session_monitor(runtime.clone());
       app.manage(runtime);
       create_tray(app.handle())?;
+      app.state::<Arc<Runtime>>().update_tray();
       if app.state::<Arc<Runtime>>().is_first_run() {
         show_settings(app.handle())?;
       }
@@ -767,6 +776,99 @@ pub fn run() {
       }
       _ => {}
     });
+}
+
+struct TrayStrings {
+  skip: &'static str,
+  pause: &'static str,
+  resume: &'static str,
+  settings: &'static str,
+  quit: &'static str,
+  paused_label: &'static str,
+  next_label: &'static str,
+}
+
+fn tray_strings(language: &str) -> TrayStrings {
+  match language {
+    "de" => TrayStrings {
+      skip: "Nächste überspringen",
+      pause: "Pausieren",
+      resume: "Fortsetzen",
+      settings: "Einstellungen",
+      quit: "Beenden",
+      paused_label: "Pausiert",
+      next_label: "Nächste",
+    },
+    "fr" => TrayStrings {
+      skip: "Sauter la suivante",
+      pause: "Mettre en pause",
+      resume: "Reprendre",
+      settings: "Paramètres",
+      quit: "Quitter",
+      paused_label: "En pause",
+      next_label: "Prochain",
+    },
+    "es" => TrayStrings {
+      skip: "Saltar la siguiente",
+      pause: "Pausar",
+      resume: "Reanudar",
+      settings: "Ajustes",
+      quit: "Salir",
+      paused_label: "Pausado",
+      next_label: "Próximo",
+    },
+    "sv" => TrayStrings {
+      skip: "Hoppa över",
+      pause: "Pausa",
+      resume: "Återuppta",
+      settings: "Inställningar",
+      quit: "Avsluta",
+      paused_label: "Pausad",
+      next_label: "Nästa",
+    },
+    "nl" => TrayStrings {
+      skip: "Volgende overslaan",
+      pause: "Pauzeren",
+      resume: "Hervatten",
+      settings: "Instellingen",
+      quit: "Afsluiten",
+      paused_label: "Gepauzeerd",
+      next_label: "Volgende",
+    },
+    "da" => TrayStrings {
+      skip: "Spring næste over",
+      pause: "Sæt på pause",
+      resume: "Genoptag",
+      settings: "Indstillinger",
+      quit: "Afslut",
+      paused_label: "Sat på pause",
+      next_label: "Næste",
+    },
+    _ => TrayStrings {
+      skip: "Skip next break",
+      pause: "Pause breaks",
+      resume: "Resume breaks",
+      settings: "Settings",
+      quit: "Quit",
+      paused_label: "Paused",
+      next_label: "Next",
+    },
+  }
+}
+
+fn build_tray_menu(
+  app: &AppHandle,
+  language: &str,
+  paused: bool,
+) -> tauri::Result<Menu<tauri::Wry>> {
+  let s = tray_strings(language);
+  let pause_text = if paused { s.resume } else { s.pause };
+  let skip = MenuItem::with_id(app, "skip", s.skip, true, None::<&str>)?;
+  let pause_item = MenuItem::with_id(app, "pause", pause_text, true, None::<&str>)?;
+  let settings_item = MenuItem::with_id(app, "settings", s.settings, true, None::<&str>)?;
+  let quit_item = MenuItem::with_id(app, "quit", s.quit, true, None::<&str>)?;
+  let sep = PredefinedMenuItem::separator(app)?;
+  Menu::with_items(app, &[&skip, &pause_item, &sep, &settings_item, &sep, &quit_item])
 }
 
 fn create_tray(app: &AppHandle) -> tauri::Result<()> {
