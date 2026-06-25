@@ -364,18 +364,22 @@ impl Runtime {
       if !sessions.is_empty() {
         resume_system_media(sessions);
       }
+      // Schedule the postponed break in the main scheduler so the status bar
+      // shows the countdown instead of "No breaks scheduled", and pause/resume
+      // state is respected during the postponement window.
+      let delay_ms = inner.settings.postpone_minutes.max(1) as u64 * 60_000;
+      inner.scheduled.insert(
+        active.reminder_id.clone(),
+        ScheduledReminder {
+          reminder_id: active.reminder_id.clone(),
+          label: active.reminder.label.clone(),
+          next_at: now_ms() + delay_ms,
+          skipped: false,
+        },
+      );
       active
     };
-    let delay = self.settings().postpone_minutes;
-    let runtime = self.app.state::<Arc<Runtime>>().inner().clone();
-    let postponed_for_timer = postponed.clone();
-    thread::spawn(move || {
-      thread::sleep(Duration::from_secs(delay as u64 * 60));
-      runtime.start_break(
-        &postponed_for_timer.reminder_id,
-        postponed_for_timer.postpone_count + 1,
-      );
-    });
+    self.wake.notify_all();
     let _ = self.app.emit(BREAK_END, postponed);
     self.emit_status();
     self.update_tray();
