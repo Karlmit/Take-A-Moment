@@ -357,6 +357,52 @@
   color: var(--text-muted);
 }
 
+/* Custom 24h time input (HH : MM) */
+.timeCustom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: var(--space-1) var(--space-2);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  width: 84px;
+  transition: border-color var(--t-fast), opacity var(--t-fast);
+}
+
+.timeCustom:not(.timeInputDisabled):focus-within {
+  border-color: var(--primary);
+}
+
+.timeUnit {
+  width: 28px;
+  border: none;
+  background: none;
+  font-size: var(--text-body);
+  font-family: var(--font-body);
+  color: var(--text);
+  text-align: center;
+  padding: 0;
+  -moz-appearance: textfield;
+}
+
+.timeUnit:focus {
+  outline: none;
+}
+
+.timeUnit::-webkit-outer-spin-button,
+.timeUnit::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.timeSep {
+  font-size: var(--text-body);
+  color: var(--text-muted);
+  user-select: none;
+  flex-shrink: 0;
+}
+
 /* Next break display */
 .nextBreakValue {
   font-size: var(--text-body);

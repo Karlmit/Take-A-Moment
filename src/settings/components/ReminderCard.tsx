@@ -61,6 +61,51 @@ interface Props {
   nextBreakAt?: number
 }
 
+function TimeOfDayInput({ value, onChange, disabled }: {
+  value: string | null
+  onChange: (v: string) => void
+  disabled: boolean
+}) {
+  const parts = (value ?? '00:00').split(':')
+  const hh = Math.min(23, Math.max(0, parseInt(parts[0] ?? '0', 10) || 0))
+  const mm = Math.min(59, Math.max(0, parseInt(parts[1] ?? '0', 10) || 0))
+
+  const commitH = (raw: string) => {
+    const n = Math.min(23, Math.max(0, parseInt(raw, 10) || 0))
+    onChange(`${String(n).padStart(2, '0')}:${String(mm).padStart(2, '0')}`)
+  }
+  const commitM = (raw: string) => {
+    const n = Math.min(59, Math.max(0, parseInt(raw, 10) || 0))
+    onChange(`${String(hh).padStart(2, '0')}:${String(n).padStart(2, '0')}`)
+  }
+
+  return (
+    <div className={`${styles.timeCustom} ${disabled ? styles.timeInputDisabled : ''}`}>
+      <input
+        type="number"
+        min={0}
+        max={23}
+        value={hh}
+        disabled={disabled}
+        className={styles.timeUnit}
+        onFocus={e => e.target.select()}
+        onChange={e => commitH(e.target.value)}
+      />
+      <span className={styles.timeSep}>:</span>
+      <input
+        type="number"
+        min={0}
+        max={59}
+        value={mm}
+        disabled={disabled}
+        className={styles.timeUnit}
+        onFocus={e => e.target.select()}
+        onChange={e => commitM(e.target.value)}
+      />
+    </div>
+  )
+}
+
 function SoundField({ label, value, onChange, onPlay, t }: {
   label: string
   value: SoundOption
@@ -253,12 +298,10 @@ export function ReminderCard({ reminder, t, timeFormat, onChange, onDelete, next
                         }}
                       />
                     </label>
-                    <input
-                      type="time"
-                      className={`${styles.timeInput} ${(draft.startTime === null || startTimeLocked) ? styles.timeInputDisabled : ''}`}
-                      value={draft.startTime ?? ''}
+                    <TimeOfDayInput
+                      value={draft.startTime}
                       disabled={draft.startTime === null || startTimeLocked}
-                      onChange={e => update({ startTime: e.target.value || null })}
+                      onChange={v => update({ startTime: v })}
                     />
                     {draft.startTime !== null && (
                       <label className={styles.checkboxLabel}>

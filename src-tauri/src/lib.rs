@@ -66,6 +66,8 @@ struct ActiveBreak {
   started_at: u64,
   ends_at: u64,
   postpone_count: u32,
+  #[serde(default)]
+  is_preview: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -319,12 +321,12 @@ impl Runtime {
     };
     destroy_overlay_windows(&self.app);
     if let Some(id) = id {
-      self.start_break(&id, 0);
+      self.start_break(&id, 0, true);
     }
   }
 
   fn end_break(&self) {
-    let ended = {
+    let (ended, should_lock) = {
       let mut inner = self.inner.lock().unwrap();
       let Some(active) = inner.active_break.take() else {
         return;
@@ -344,7 +346,12 @@ impl Runtime {
           schedule_locked(&mut inner, &reminder);
         }
       }
-      active
+      // Lock the PC after a real break that was on screen for ≥5 minutes.
+      // This lets the full-screen overlay replace the lock screen during the
+      // break, then hands back to the OS lock once the break is over.
+      let should_lock = !active.is_preview
+        && now_ms().saturating_sub(active.started_at) >= 5 * 60_000;
+      (active, should_lock)
     };
     let _ = self.app.emit(BREAK_END, ended);
     self.emit_status();
@@ -355,6 +362,9 @@ impl Runtime {
     thread::spawn(move || {
       thread::sleep(Duration::from_millis(2600));
       destroy_overlay_windows(&app);
+      if should_lock {
+        lock_pc();
+      }
     });
   }
 
@@ -457,7 +467,7 @@ impl Runtime {
       }
     };
     match action {
-      Some(Some((reminder_id, postpone_count))) => self.start_break(&reminder_id, postpone_count),
+      Some(Some((reminder_id, postpone_count))) => self.start_break(&reminder_id, postpone_count, false),
       Some(None) => {
         self.emit_status();
         self.update_tray();
@@ -467,7 +477,7 @@ impl Runtime {
     }
   }
 
-  fn start_break(&self, reminder_id: &str, postpone_count: u32) {
+  fn start_break(&self, reminder_id: &str, postpone_count: u32, is_preview: bool) {
     let (active, should_pause_music) = {
       let mut inner = self.inner.lock().unwrap();
       let Some(reminder) = inner
@@ -486,6 +496,7 @@ impl Runtime {
         reminder,
         started_at: now,
         postpone_count,
+        is_preview,
       };
       let should_pause_music = inner.settings.pause_music_on_break;
       inner.scheduled.remove(reminder_id);
@@ -1178,6 +1189,17 @@ fn default_settings() -> AppSettings {
     paused: false,
   }
 }
+
+#[cfg(windows)]
+fn lock_pc() {
+  let mut cmd = Command::new("rundll32.exe");
+  cmd.args(["user32.dll,LockWorkStation"]);
+  configure_hidden(&mut cmd);
+  let _ = cmd.spawn();
+}
+
+#[cfg(not(windows))]
+fn lock_pc() {}
 
 #[cfg(windows)]
 fn is_idle(threshold_minutes: u32) -> bool {
