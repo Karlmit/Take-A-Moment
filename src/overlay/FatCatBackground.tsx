@@ -1,20 +1,17 @@
-import { useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 
 function getVideoUrl(filename: string): string {
   return new URL(`../videos/${filename}`, location.href).href
 }
 
-const CROSSFADE_MS = 400
-
-function videoStyle(visible: boolean): CSSProperties {
+function videoStyle(onTop: boolean): CSSProperties {
   return {
     position: 'absolute',
     inset: 0,
     width: '100%',
     height: '100%',
     objectFit: 'cover',
-    opacity: visible ? 1 : 0,
-    transition: `opacity ${CROSSFADE_MS}ms linear`,
+    zIndex: onTop ? 1 : 0,
   }
 }
 
@@ -22,13 +19,28 @@ export function FatCatBackground() {
   const loopRef = useRef<HTMLVideoElement>(null)
   const [showLoop, setShowLoop] = useState(false)
 
+  useEffect(() => {
+    // Warm up the loop video: play-then-pause forces the browser to decode
+    // and paint its first frame right away, so it's already sitting behind
+    // the intro (never visible yet) instead of blank when we need it.
+    const loop = loopRef.current
+    if (!loop) return
+    loop.play().then(() => loop.pause()).catch(() => {})
+  }, [])
+
   const handleIntroEnded = () => {
     const loop = loopRef.current
-    if (loop) {
-      loop.currentTime = 0
-      void loop.play()
+    const reveal = () => setShowLoop(true)
+    if (!loop) {
+      reveal()
+      return
     }
-    setShowLoop(true)
+    loop.currentTime = 0
+    loop.play().catch(() => {}).then(() => {
+      // Two rAFs guarantee the loop's frame has actually been painted
+      // before we swap it to the front — no gap, no fade, just a hand-off.
+      requestAnimationFrame(() => requestAnimationFrame(reveal))
+    })
   }
 
   return (
