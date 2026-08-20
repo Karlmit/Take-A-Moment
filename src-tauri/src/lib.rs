@@ -1,4 +1,4 @@
-use chrono::{Local, Timelike};
+use chrono::{DateTime, Local, Timelike};
 use serde::{Deserialize, Serialize};
 use std::{
   collections::{HashMap, HashSet},
@@ -39,6 +39,8 @@ struct Reminder {
   skip_on_media: bool,
   volume: u32,
   start_time: Option<String>,
+  #[serde(default)]
+  end_time: Option<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -1002,7 +1004,9 @@ fn schedule_locked(inner: &mut Inner, reminder: &Reminder) {
   let next_at = reminder
     .start_time
     .as_deref()
-    .map(|start| next_occurrence_from_anchor(start, reminder.frequency_minutes))
+    .map(|start| {
+      next_occurrence_from_anchor(start, reminder.end_time.as_deref(), reminder.frequency_minutes)
+    })
     .unwrap_or_else(|| now_ms() + reminder.frequency_minutes as u64 * 60_000);
   inner.scheduled.insert(
     reminder.id.clone(),
@@ -1016,21 +1020,44 @@ fn schedule_locked(inner: &mut Inner, reminder: &Reminder) {
   );
 }
 
-fn next_occurrence_from_anchor(start: &str, frequency_minutes: u32) -> u64 {
-  let parts: Vec<_> = start.split(':').collect();
+fn parse_time_anchor_ms(now: DateTime<Local>, time: &str) -> Option<u64> {
+  let parts: Vec<_> = time.split(':').collect();
   let hour = parts.first().and_then(|v| v.parse::<u32>().ok()).unwrap_or(0);
   let minute = parts.get(1).and_then(|v| v.parse::<u32>().ok()).unwrap_or(0);
+  now
+    .with_hour(hour)
+    .and_then(|d| d.with_minute(minute))
+    .and_then(|d| d.with_second(0))
+    .and_then(|d| d.with_nanosecond(0))
+    .map(|d| d.timestamp_millis() as u64)
+}
+
+// `start`/`end` anchor a daily window (e.g. "09:00".."12:00"). Occurrences step
+// forward from `start` every `frequency_minutes`; once a candidate would land at
+// or past `end`, scheduling rolls over to the next day's window instead of
+// spilling past it. `end` is ignored if missing or not after `start`, so a
+// reminder with only a start time behaves exactly as before.
+fn next_occurrence_from_anchor(start: &str, end: Option<&str>, frequency_minutes: u32) -> u64 {
   let now = Local::now();
-  let Some(anchor) = now.with_hour(hour).and_then(|d| d.with_minute(minute)).and_then(|d| d.with_second(0)).and_then(|d| d.with_nanosecond(0)) else {
+  let Some(start_ms) = parse_time_anchor_ms(now, start) else {
     return now_ms() + frequency_minutes as u64 * 60_000;
   };
-  let anchor_ms = anchor.timestamp_millis() as u64;
+  let end_ms = end
+    .and_then(|e| parse_time_anchor_ms(now, e))
+    .filter(|&end_ms| end_ms > start_ms);
+
   let now_ms = now_ms();
-  if anchor_ms > now_ms {
-    return anchor_ms;
-  }
   let interval = frequency_minutes as u64 * 60_000;
-  anchor_ms + (((now_ms - anchor_ms) / interval) + 1) * interval
+  let candidate = if start_ms > now_ms {
+    start_ms
+  } else {
+    start_ms + (((now_ms - start_ms) / interval) + 1) * interval
+  };
+
+  match end_ms {
+    Some(end_ms) if candidate >= end_ms => start_ms + 24 * 60 * 60 * 1000,
+    _ => candidate,
+  }
 }
 
 fn now_ms() -> u64 {
@@ -1176,6 +1203,7 @@ fn default_settings() -> AppSettings {
       skip_on_media: false,
       volume: 80,
       start_time: None,
+      end_time: None,
     }],
     theme: "still-garden".into(),
     language: "sv".into(),

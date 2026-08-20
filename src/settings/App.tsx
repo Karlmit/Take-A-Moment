@@ -30,6 +30,7 @@ function newReminder(): Reminder {
     skipOnMedia: true,
     volume: 80,
     startTime: null,
+    endTime: null,
   }
 }
 

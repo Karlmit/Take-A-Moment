@@ -57,6 +57,7 @@ interface Strings {
   // Start time / scheduling
   startTime: string
   setStartTime: string
+  endTime: string
   reschedule: string
   today: string
   tomorrow: string
@@ -135,6 +136,7 @@ const translations: Record<Language, Strings> = {
     themeMorningMist: 'Morning Mist',
     startTime: 'Start time',
     setStartTime: 'Set start time',
+    endTime: 'End time',
     reschedule: 'Reschedule',
     today: 'Today',
     tomorrow: 'Tomorrow',
@@ -208,6 +210,7 @@ const translations: Record<Language, Strings> = {
     themeMorningMist: 'Morgennebel',
     startTime: 'Startzeit',
     setStartTime: 'Startzeit festlegen',
+    endTime: 'Endzeit',
     reschedule: 'Neu planen',
     today: 'Heute',
     tomorrow: 'Morgen',
@@ -281,6 +284,7 @@ const translations: Record<Language, Strings> = {
     themeMorningMist: 'Brume matinale',
     startTime: 'Heure de début',
     setStartTime: "Définir l'heure de début",
+    endTime: 'Heure de fin',
     reschedule: 'Reprogrammer',
     today: "Aujourd'hui",
     tomorrow: 'Demain',
@@ -354,6 +358,7 @@ const translations: Record<Language, Strings> = {
     themeMorningMist: 'Niebla matutina',
     startTime: 'Hora de inicio',
     setStartTime: 'Establecer hora de inicio',
+    endTime: 'Hora de fin',
     reschedule: 'Reprogramar',
     today: 'Hoy',
     tomorrow: 'Mañana',
@@ -427,6 +432,7 @@ const translations: Record<Language, Strings> = {
     themeMorningMist: 'Morgondimma',
     startTime: 'Starttid',
     setStartTime: 'Ange starttid',
+    endTime: 'Sluttid',
     reschedule: 'Ändra tid',
     today: 'Idag',
     tomorrow: 'Imorgon',
@@ -500,6 +506,7 @@ const translations: Record<Language, Strings> = {
     volume: 'Volume',
     startTime: 'Starttijd',
     setStartTime: 'Starttijd instellen',
+    endTime: 'Eindtijd',
     reschedule: 'Opnieuw plannen',
     today: 'Vandaag',
     tomorrow: 'Morgen',
@@ -573,6 +580,7 @@ const translations: Record<Language, Strings> = {
     volume: 'Lydstyrke',
     startTime: 'Starttid',
     setStartTime: 'Angiv starttid',
+    endTime: 'Sluttid',
     reschedule: 'Omplanlæg',
     today: 'I dag',
     tomorrow: 'I morgen',

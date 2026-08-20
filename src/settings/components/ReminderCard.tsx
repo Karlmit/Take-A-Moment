@@ -14,6 +14,12 @@ function nextWholeHour(): string {
   return `${String(d.getHours()).padStart(2, '0')}:00`
 }
 
+function plusHours(time: string, hours: number): string {
+  const [h, m] = time.split(':').map(v => parseInt(v, 10) || 0)
+  const total = Math.min(23 * 60 + 59, h * 60 + m + hours * 60)
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+}
+
 function formatNextBreakTime(ts: number, t: Strings, timeFormat: '24h' | '12h'): string {
   const diff = ts - Date.now()
   const mins = Math.ceil(diff / 60000)
@@ -292,7 +298,7 @@ export function ReminderCard({ reminder, t, timeFormat, onChange, onDelete, next
                             update({ startTime: nextWholeHour() })
                             setStartTimeLocked(false)
                           } else {
-                            update({ startTime: null })
+                            update({ startTime: null, endTime: null })
                             setStartTimeLocked(false)
                           }
                         }}
@@ -325,6 +331,32 @@ export function ReminderCard({ reminder, t, timeFormat, onChange, onDelete, next
                   </Field>
                 )}
               </div>
+
+              {draft.startTime !== null && (
+                <div className={styles.row}>
+                  <Field label={t.endTime}>
+                    <div className={styles.startTimeRow}>
+                      <label className={styles.checkboxLabel}>
+                        <input
+                          type="checkbox"
+                          className={styles.checkboxInput}
+                          checked={draft.endTime !== null}
+                          onChange={e => {
+                            update({
+                              endTime: e.target.checked ? plusHours(draft.startTime as string, 4) : null,
+                            })
+                          }}
+                        />
+                      </label>
+                      <TimeOfDayInput
+                        value={draft.endTime}
+                        disabled={draft.endTime === null || startTimeLocked}
+                        onChange={v => update({ endTime: v })}
+                      />
+                    </div>
+                  </Field>
+                </div>
+              )}
 
               <div className={styles.checkboxRow}>
                 <Checkbox

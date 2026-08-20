@@ -11,6 +11,7 @@ export interface Reminder {
   skipOnMedia: boolean
   volume: number
   startTime: string | null
+  endTime: string | null
 }
 
 export interface AppSettings {
@@ -62,6 +63,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
       skipOnMedia: false,
       volume: 80,
       startTime: null,
+      endTime: null,
     },
   ],
   theme: 'still-garden',
