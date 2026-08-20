@@ -158,15 +158,16 @@ export function App() {
     } as Record<string, string | number | object>,
   } as Variants
 
-  // Fat Cat mode skips the radial curtain — the video itself slides in
-  // instead (see fatCatSlideVariants below), so the overlay just fades.
-  const fatCatOverlayVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { duration: 0.4, ease: [0.4, 0, 0.2, 1] } },
-    exit: { opacity: 0, transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] } },
+  // Fat Cat mode skips the radial curtain on the way in — the video itself
+  // slides in instead (see fatCatSlideVariants below) — but the break still
+  // ends with the same radial wipe as every other mode, so exit is shared.
+  const overlayVariants = {
+    hidden: isFatCat ? { opacity: 0 } : curtainOverlayVariants.hidden,
+    visible: isFatCat
+      ? { opacity: 1, transition: { duration: 0.4, ease: [0.4, 0, 0.2, 1] } }
+      : curtainOverlayVariants.visible,
+    exit: curtainOverlayVariants.exit,
   } as Variants
-
-  const overlayVariants = isFatCat ? fatCatOverlayVariants : curtainOverlayVariants
 
   // Matches the slide-in from the original cat-gatekeeper's content.css
   // (`animation: slide-in 3s forwards`, `translateX(100vw) -> 0`, default
@@ -192,7 +193,7 @@ export function App() {
     <AnimatePresence>
       {armed && breakData && (
         <motion.div
-          className={`${styles.overlay} ${isDarkBg ? styles.overlayDark : ''} ${isFatCat ? styles.overlayFatcat : ''}`}
+          className={`${styles.overlay} ${isDarkBg ? styles.overlayDark : ''}`}
           variants={overlayVariants}
           initial="hidden"
           animate={visible ? 'visible' : 'hidden'}

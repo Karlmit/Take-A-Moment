@@ -28,14 +28,6 @@
   --color-panel-hover: rgba(255, 255, 255, 0.22);
 }
 
-/* Fat Cat mode replaces the radial curtain with a video slide-in,
-   so the overlay itself just fades instead of being clip-path-masked. */
-.overlayFatcat {
-  mask-image: none;
-  -webkit-mask-image: none;
-  box-shadow: none;
-}
-
 /* Background layer sits behind everything */
 .bgLayer {
   position: absolute;
