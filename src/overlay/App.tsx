@@ -133,12 +133,13 @@ export function App() {
   }
 
   const isDarkBg = breakBackground !== 'default'
+  const isFatCat = breakBackground === 'fatcat'
 
   // These gentle wipe/radial animations are the core of the break experience,
   // so they always play — we deliberately do NOT downgrade them under the OS
   // "reduce motion" setting (which is off by default on many VMs/servers and
   // would otherwise drop them to a plain fade).
-  const overlayVariants = {
+  const curtainOverlayVariants = {
     hidden: { clipPath: 'inset(0 0 100% 0)', '--hole-pct': -20 } as Record<string, string | number>,
     visible: {
       clipPath: 'inset(0 0 0% 0)',
@@ -157,6 +158,22 @@ export function App() {
     } as Record<string, string | number | object>,
   } as Variants
 
+  // Fat Cat mode skips the radial curtain — the video itself slides in
+  // instead (see fatCatSlideVariants below), so the overlay just fades.
+  const fatCatOverlayVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { duration: 0.4, ease: [0.4, 0, 0.2, 1] } },
+    exit: { opacity: 0, transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] } },
+  } as Variants
+
+  const overlayVariants = isFatCat ? fatCatOverlayVariants : curtainOverlayVariants
+
+  const fatCatSlideVariants = {
+    hidden: { x: '-100%' },
+    visible: { x: '0%', transition: { duration: 1.1, ease: [0.4, 0, 0.2, 1] } },
+    exit: { x: '100%', transition: { duration: 0.7, ease: [0.4, 0, 0.2, 1] } },
+  } as Variants
+
   const contentVariants = {
     hidden: { opacity: 0, y: 20 },
     visible: {
@@ -171,7 +188,7 @@ export function App() {
     <AnimatePresence>
       {armed && breakData && (
         <motion.div
-          className={`${styles.overlay} ${isDarkBg ? styles.overlayDark : ''}`}
+          className={`${styles.overlay} ${isDarkBg ? styles.overlayDark : ''} ${isFatCat ? styles.overlayFatcat : ''}`}
           variants={overlayVariants}
           initial="hidden"
           animate={visible ? 'visible' : 'hidden'}
@@ -183,7 +200,17 @@ export function App() {
               {breakBackground === 'mesh' && <MeshBackground theme={theme} />}
               {breakBackground === 'aurora' && <AuroraBackground theme={theme} />}
               {breakBackground === 'shadway' && <ShadwayBackground theme={theme} />}
-              {breakBackground === 'fatcat' && <FatCatBackground />}
+              {isFatCat && (
+                <motion.div
+                  className={styles.slideLayer}
+                  variants={fatCatSlideVariants}
+                  initial="hidden"
+                  animate={visible ? 'visible' : 'hidden'}
+                  exit="exit"
+                >
+                  <FatCatBackground />
+                </motion.div>
+              )}
               <div className={styles.bgVeil} />
             </div>
           )}
