@@ -7,6 +7,7 @@ import { playSound, preloadSound } from '../shared/sounds'
 import { MeshBackground } from './MeshBackground'
 import { AuroraBackground } from './AuroraBackground'
 import { ShadwayBackground } from './ShadwayBackground'
+import { FatCatBackground } from './FatCatBackground'
 import styles from './App.module.css'
 
 declare global {
@@ -182,6 +183,7 @@ export function App() {
               {breakBackground === 'mesh' && <MeshBackground theme={theme} />}
               {breakBackground === 'aurora' && <AuroraBackground theme={theme} />}
               {breakBackground === 'shadway' && <ShadwayBackground theme={theme} />}
+              {breakBackground === 'fatcat' && <FatCatBackground />}
               <div className={styles.bgVeil} />
             </div>
           )}

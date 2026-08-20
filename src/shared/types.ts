@@ -24,7 +24,7 @@ export interface AppSettings {
   postponeMinutes: number
   coverAllDisplays: boolean
   timeFormat: '24h' | '12h'
-  breakBackground: 'default' | 'mesh' | 'aurora' | 'shadway'
+  breakBackground: 'default' | 'mesh' | 'aurora' | 'shadway' | 'fatcat'
 }
 
 export interface ActiveBreak {

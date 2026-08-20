@@ -151,6 +151,13 @@
   );
 }
 
+.bgPreview_fatcat {
+  background:
+    radial-gradient(ellipse at 30% 40%, #f4c27a 0%, transparent 55%),
+    radial-gradient(ellipse at 75% 65%, #d98d4a 0%, transparent 60%),
+    #3a2418;
+}
+
 .bgLabel {
   font-size: var(--text-label);
   color: var(--text);

@@ -83,6 +83,7 @@ interface Strings {
   bgMesh: string
   bgAurora: string
   bgShadway: string
+  bgFatcat: string
 }
 
 const translations: Record<Language, Strings> = {
@@ -158,6 +159,7 @@ const translations: Record<Language, Strings> = {
     bgDefault: 'Solid',
     bgMesh: 'Dusk',
     bgAurora: 'Aurora',
+    bgFatcat: 'Fat Cat',
     bgShadway: 'Silk',
   },
   de: {
@@ -232,6 +234,7 @@ const translations: Record<Language, Strings> = {
     bgDefault: 'Einfarbig',
     bgMesh: 'Dusk',
     bgAurora: 'Aurora',
+    bgFatcat: 'Dicke Katze',
     bgShadway: 'Silk',
   },
   fr: {
@@ -306,6 +309,7 @@ const translations: Record<Language, Strings> = {
     bgDefault: 'Uni',
     bgMesh: 'Dusk',
     bgAurora: 'Aurora',
+    bgFatcat: 'Gros chat',
     bgShadway: 'Silk',
   },
   es: {
@@ -380,6 +384,7 @@ const translations: Record<Language, Strings> = {
     bgDefault: 'Sólido',
     bgMesh: 'Dusk',
     bgAurora: 'Aurora',
+    bgFatcat: 'Gato gordo',
     bgShadway: 'Silk',
   },
   sv: {
@@ -454,6 +459,7 @@ const translations: Record<Language, Strings> = {
     bgDefault: 'Enfärgad',
     bgMesh: 'Dusk',
     bgAurora: 'Aurora',
+    bgFatcat: 'Fet katt',
     bgShadway: 'Silk',
   },
   nl: {
@@ -528,6 +534,7 @@ const translations: Record<Language, Strings> = {
     bgDefault: 'Effen',
     bgMesh: 'Dusk',
     bgAurora: 'Aurora',
+    bgFatcat: 'Dikke kat',
     bgShadway: 'Silk',
   },
   da: {
@@ -602,6 +609,7 @@ const translations: Record<Language, Strings> = {
     bgDefault: 'Ensfarvet',
     bgMesh: 'Dusk',
     bgAurora: 'Aurora',
+    bgFatcat: 'Fed kat',
     bgShadway: 'Silk',
   },
 }

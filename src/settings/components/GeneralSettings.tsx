@@ -42,7 +42,7 @@ export function GeneralSettings({ settings, t, version, onChange }: Props) {
 
       <Section title={t.breakBackground}>
         <div className={styles.bgGrid}>
-          {(['default', 'mesh', 'aurora', 'shadway'] as const).map(bg => (
+          {(['default', 'mesh', 'aurora', 'shadway', 'fatcat'] as const).map(bg => (
             <button
               key={bg}
               type="button"
@@ -51,7 +51,7 @@ export function GeneralSettings({ settings, t, version, onChange }: Props) {
             >
               <span className={`${styles.bgPreview} ${styles[`bgPreview_${bg}`]}`} />
               <span className={styles.bgLabel}>
-                {{ default: t.bgDefault, mesh: t.bgMesh, aurora: t.bgAurora, shadway: t.bgShadway }[bg]}
+                {{ default: t.bgDefault, mesh: t.bgMesh, aurora: t.bgAurora, shadway: t.bgShadway, fatcat: t.bgFatcat }[bg]}
               </span>
             </button>
           ))}
