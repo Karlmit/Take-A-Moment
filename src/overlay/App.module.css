@@ -44,7 +44,7 @@
   overflow: hidden;
 }
 
-/* Wraps the Fat Cat video so it can slide in from the left independently
+/* Wraps the Fat Cat video so it can slide in from the right independently
    of the rest of the background layer. */
 .slideLayer {
   position: absolute;

@@ -168,10 +168,14 @@ export function App() {
 
   const overlayVariants = isFatCat ? fatCatOverlayVariants : curtainOverlayVariants
 
+  // Matches the slide-in from the original cat-gatekeeper's content.css
+  // (`animation: slide-in 3s forwards`, `translateX(100vw) -> 0`, default
+  // CSS `ease` curve): the cat enters from off-screen right. There's no
+  // slide-out in the source — it just fades — so exit holds position.
   const fatCatSlideVariants = {
-    hidden: { x: '-100%' },
-    visible: { x: '0%', transition: { duration: 1.1, ease: [0.4, 0, 0.2, 1] } },
-    exit: { x: '100%', transition: { duration: 0.7, ease: [0.4, 0, 0.2, 1] } },
+    hidden: { x: '100%' },
+    visible: { x: '0%', transition: { duration: 3, ease: [0.25, 0.1, 0.25, 1] } },
+    exit: { x: '0%', transition: { duration: 0 } },
   } as Variants
 
   const contentVariants = {
