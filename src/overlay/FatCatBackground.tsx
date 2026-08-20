@@ -1,22 +1,40 @@
-import { useState, type CSSProperties } from 'react'
+import { useRef, useState, type CSSProperties } from 'react'
 
 function getVideoUrl(filename: string): string {
   return new URL(`../videos/${filename}`, location.href).href
 }
 
-function videoStyle(onTop: boolean): CSSProperties {
+function videoStyle(visible: boolean): CSSProperties {
   return {
     position: 'absolute',
     inset: 0,
     width: '100%',
     height: '100%',
     objectFit: 'cover',
-    zIndex: onTop ? 1 : 0,
+    // display:none (not opacity/z-index) — these videos have transparent
+    // backgrounds, so anything merely "behind" or faded would still show
+    // through the intro's transparent pixels. Fully absent from the render
+    // tree is the only way to hide it.
+    display: visible ? 'block' : 'none',
   }
 }
 
 export function FatCatBackground() {
+  const loopRef = useRef<HTMLVideoElement>(null)
   const [showLoop, setShowLoop] = useState(false)
+  const [hideIntro, setHideIntro] = useState(false)
+
+  const handleIntroEnded = () => {
+    const loop = loopRef.current
+    if (loop) {
+      loop.currentTime = 0
+      void loop.play()
+    }
+    setShowLoop(true)
+    // One frame of overlap (imperceptible) before removing the intro —
+    // this is the original cat-gatekeeper's own handover technique.
+    requestAnimationFrame(() => setHideIntro(true))
+  }
 
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
@@ -25,18 +43,16 @@ export function FatCatBackground() {
         autoPlay
         muted
         playsInline
-        onEnded={() => setShowLoop(true)}
-        style={videoStyle(!showLoop)}
+        onEnded={handleIntroEnded}
+        style={videoStyle(!hideIntro)}
       />
-      {/* Plays and loops continuously from the start, hidden behind the
-          intro — by the time it's revealed it's already mid-motion, so
-          there's no fixed "first frame" and no decode gap to hide. */}
       <video
+        ref={loopRef}
         src={getVideoUrl('neko2.webm')}
-        autoPlay
         muted
         playsInline
         loop
+        preload="auto"
         style={videoStyle(showLoop)}
       />
     </div>
